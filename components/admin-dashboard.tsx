@@ -115,8 +115,8 @@ export function AdminDashboard({
         </div>
 
         <p className="panel-copy">
-          Cards flagged otomatis akan hilang dari daftar publik sampai statusnya
-          diaktifkan lagi oleh admin.
+          Cards yang kena report akan ditandai sebagai flagged untuk review admin,
+          tapi tetap tampil di daftar publik sampai kamu ubah manual ke hidden atau expired.
         </p>
 
         {notice ? <p className="mt-4 text-sm text-[var(--color-muted)]">{notice}</p> : null}

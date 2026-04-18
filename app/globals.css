@@ -370,13 +370,25 @@ select:focus {
   }
 
   .profile-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    height: 100%;
     border: 1px solid rgba(82, 68, 48, 0.14);
     border-radius: 1.8rem;
-    padding: 1.3rem;
+    padding: 1.15rem;
     background:
       linear-gradient(165deg, rgba(255, 251, 246, 0.98), rgba(252, 241, 223, 0.9)),
       var(--color-paper);
     box-shadow: var(--shadow-soft);
+    transition: transform 160ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .profile-card:hover,
+  .profile-card:focus-within {
+    transform: translateY(-3px);
+    border-color: rgba(159, 64, 37, 0.24);
+    box-shadow: var(--shadow-hard);
   }
 
   .profile-card-top {
@@ -387,33 +399,62 @@ select:focus {
 
   .profile-name {
     margin: 0.35rem 0 0;
-    font-size: 2rem;
-    line-height: 0.95;
+    font-size: clamp(1.7rem, 2vw, 2.2rem);
+    line-height: 0.98;
   }
 
   .profile-links {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    margin-top: 1.25rem;
+    align-content: start;
   }
 
   .social-link {
     display: inline-flex;
     align-items: center;
     gap: 0.7rem;
-    padding: 0.82rem 1rem;
+    min-width: 0;
+    padding: 0.78rem 0.95rem;
     border-radius: 1rem;
     border: 1px solid rgba(82, 68, 48, 0.12);
     background: rgba(255, 253, 249, 0.7);
     font-weight: 600;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  }
+
+  .social-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+  }
+
+  .social-link-instagram:hover,
+  .social-link-instagram:focus-visible {
+    border-color: rgba(214, 36, 159, 0.24);
+    background: rgba(255, 246, 251, 0.96);
+  }
+
+  .social-link-linkedin:hover,
+  .social-link-linkedin:focus-visible {
+    border-color: rgba(10, 102, 194, 0.24);
+    background: rgba(242, 248, 255, 0.96);
+  }
+
+  .social-link:hover,
+  .social-link:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(159, 64, 37, 0.28);
+    background: rgba(255, 250, 242, 0.96);
+    outline: none;
   }
 
   .profile-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem 1.2rem;
-    margin-top: 1rem;
+    margin-top: auto;
+    padding-top: 0.4rem;
     color: var(--color-muted);
     font-size: 0.86rem;
   }
@@ -522,7 +563,12 @@ select:focus {
   }
 
   .card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    align-items: stretch;
+  }
+
+  .profile-card {
+    min-height: 19rem;
   }
 
   .filter-bar {
@@ -537,6 +583,10 @@ select:focus {
 @media (min-width: 1120px) {
   .page-shell {
     padding-top: 2.6rem;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 
   .admin-grid {

@@ -23,6 +23,7 @@ import type {
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type AdminProfileRow = Database["public"]["Views"]["admin_profiles"]["Row"];
 type AdminReportRow = Database["public"]["Tables"]["reports"]["Row"];
+const PUBLIC_VISIBLE_STATUSES: ProfileRow["status"][] = ["active", "flagged"];
 
 function serializeProfile(row: ProfileRow): PublicProfile {
   return {
@@ -151,7 +152,7 @@ export async function listProfiles(
   let profilesQuery = getSupabaseAdmin()
     .from("profiles")
     .select("*", { count: "exact" })
-    .eq("status", "active")
+    .in("status", PUBLIC_VISIBLE_STATUSES)
     .gt("expires_at", nowIso)
     .order("updated_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -178,18 +179,18 @@ export async function listProfiles(
       getSupabaseAdmin()
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active")
+        .in("status", PUBLIC_VISIBLE_STATUSES)
         .gt("expires_at", nowIso),
       getSupabaseAdmin()
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active")
+        .in("status", PUBLIC_VISIBLE_STATUSES)
         .gt("expires_at", nowIso)
         .not("instagram_handle", "is", null),
       getSupabaseAdmin()
         .from("profiles")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active")
+        .in("status", PUBLIC_VISIBLE_STATUSES)
         .gt("expires_at", nowIso)
         .not("linkedin_slug", "is", null),
     ]);

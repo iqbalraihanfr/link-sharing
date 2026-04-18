@@ -2,18 +2,74 @@ import type { SVGProps } from "react";
 
 export function InstagramIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-      <rect x="3.5" y="3.5" width="17" height="17" rx="5" strokeWidth="1.8" />
-      <circle cx="12" cy="12" r="4" strokeWidth="1.8" />
-      <circle cx="17.25" cy="6.75" r="1" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <defs>
+        <radialGradient
+          id="ig-gradient"
+          cx="30%"
+          cy="107%"
+          r="150%"
+          fx="30%"
+          fy="107%"
+        >
+          <stop offset="0%" stopColor="#fdf497" />
+          <stop offset="5%" stopColor="#fdf497" />
+          <stop offset="45%" stopColor="#fd5949" />
+          <stop offset="60%" stopColor="#d6249f" />
+          <stop offset="90%" stopColor="#285AEB" />
+        </radialGradient>
+      </defs>
+      <rect
+        x="2"
+        y="2"
+        width="20"
+        height="20"
+        rx="6"
+        stroke="url(#ig-gradient)"
+        strokeWidth="2"
+        fill="none"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="4.5"
+        stroke="url(#ig-gradient)"
+        strokeWidth="2"
+        fill="none"
+      />
+      <circle cx="17.5" cy="6.5" r="1.25" fill="url(#ig-gradient)" />
     </svg>
   );
 }
 
 export function LinkedInIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-      <path d="M6.45 8.9H3.2V20h3.25V8.9ZM4.83 3.5a1.95 1.95 0 1 0 0 3.9 1.95 1.95 0 0 0 0-3.9ZM20.8 13.18c0-3.37-1.8-4.94-4.21-4.94-1.94 0-2.8 1.07-3.28 1.82V8.9H10.1c.04.76 0 11.1 0 11.1h3.2v-6.2c0-.33.03-.65.12-.89.26-.65.85-1.32 1.84-1.32 1.3 0 1.82.99 1.82 2.44V20H20.8v-6.82Z" />
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect width="24" height="24" rx="4" fill="#0A66C2" />
+      <path
+        d="M8.75 10.5v5.25M8.75 7.5v.008"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M12.75 15.75v-3a1.5 1.5 0 0 1 3 0v3"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M12.75 12.38v-1.88"
+        stroke="#fff"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </svg>
   );
 }

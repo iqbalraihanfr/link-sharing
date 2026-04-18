@@ -10,7 +10,29 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatLinkedInLabel(slug: string, displayName: string) {
+  const cleaned = slug.replace(/-\d{5,}$/u, "");
+
+  if (cleaned !== slug && cleaned.includes("-")) {
+    return cleaned
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  if (cleaned !== slug) {
+    return displayName;
+  }
+
+  return slug;
+}
+
 export function ProfileCard({ profile }: { profile: PublicProfile }) {
+  const linkedInLabel = profile.linkedinSlug
+    ? formatLinkedInLabel(profile.linkedinSlug, profile.displayName)
+    : null;
+
   return (
     <article className="profile-card">
       <div className="profile-card-top">
@@ -24,25 +46,26 @@ export function ProfileCard({ profile }: { profile: PublicProfile }) {
       <div className="profile-links">
         {profile.instagramHandle ? (
           <a
-            className="social-link"
+            className="social-link social-link-instagram"
             href={profile.instagramUrl ?? "#"}
             target="_blank"
             rel="noopener noreferrer nofollow"
           >
-            <InstagramIcon className="h-5 w-5" />
+            <InstagramIcon className="social-icon social-icon-instagram" />
             <span>@{profile.instagramHandle}</span>
           </a>
         ) : null}
 
         {profile.linkedinSlug ? (
           <a
-            className="social-link"
+            className="social-link social-link-linkedin"
             href={profile.linkedinUrl ?? "#"}
             target="_blank"
             rel="noopener noreferrer nofollow"
+            title={profile.linkedinSlug}
           >
-            <LinkedInIcon className="h-5 w-5" />
-            <span>{profile.linkedinSlug}</span>
+            <LinkedInIcon className="social-icon social-icon-linkedin" />
+            <span>{linkedInLabel}</span>
           </a>
         ) : null}
       </div>

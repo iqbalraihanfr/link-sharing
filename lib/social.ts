@@ -11,6 +11,26 @@ const LINKEDIN_HOSTS = new Set(["linkedin.com", "www.linkedin.com"]);
 
 const INSTAGRAM_HANDLE_PATTERN = /^[a-z0-9._]{1,30}$/;
 const LINKEDIN_SLUG_PATTERN = /^[a-z0-9-]{3,100}$/;
+const GENERIC_DISPLAY_NAME_TOKENS = new Set([
+  "test",
+  "testing",
+  "tes",
+  "coba",
+  "dummy",
+  "sample",
+  "contoh",
+  "trial",
+]);
+const GENERIC_DISPLAY_NAME_FILLER_TOKENS = new Set([
+  "aja",
+  "doang",
+  "dulu",
+  "dong",
+  "nih",
+  "1",
+  "12",
+  "123",
+]);
 
 function collapseWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -36,6 +56,27 @@ function cleanInput(value?: string | null) {
   return collapseWhitespace(value);
 }
 
+function isGenericDisplayName(value: string) {
+  const tokens = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!tokens.length) return false;
+
+  const allowedTokens = new Set([
+    ...GENERIC_DISPLAY_NAME_TOKENS,
+    ...GENERIC_DISPLAY_NAME_FILLER_TOKENS,
+  ]);
+
+  return (
+    tokens.some((token) => GENERIC_DISPLAY_NAME_TOKENS.has(token)) &&
+    tokens.every((token) => allowedTokens.has(token))
+  );
+}
+
 export function buildInstagramUrl(handle: string) {
   return `https://www.instagram.com/${handle}/`;
 }
@@ -51,6 +92,14 @@ export function normalizeDisplayName(value: string) {
     throw new AppError("Nama harus di antara 2 sampai 80 karakter.", {
       status: 422,
       code: "INVALID_NAME",
+    });
+  }
+
+  // Reject obvious placeholder submissions before they reach storage.
+  if (isGenericDisplayName(normalized)) {
+    throw new AppError("Nama seperti test, tes, atau coba tidak boleh dipakai.", {
+      status: 422,
+      code: "GENERIC_NAME_BLOCKED",
     });
   }
 
