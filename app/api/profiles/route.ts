@@ -1,0 +1,49 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { getRequestOrigin, getClientIpAddress } from "@/lib/request";
+import { verifyTurnstileToken } from "@/lib/turnstile";
+import { createProfile } from "@/lib/store";
+import { AppError, getErrorResponse } from "@/lib/errors";
+
+export const runtime = "nodejs";
+
+export async function POST(request: NextRequest) {
+  try {
+    const ipAddress = getClientIpAddress(request);
+    await enforceRateLimit("profile-submit", ipAddress, 8, "1 h");
+
+    const body = (await request.json()) as {
+      displayName?: string;
+      instagramInput?: string;
+      linkedinInput?: string;
+      website?: string;
+      turnstileToken?: string;
+    };
+
+    if (body.website?.trim()) {
+      throw new AppError("Form spam terdeteksi.", {
+        status: 422,
+        code: "HONEYPOT_TRIGGERED",
+      });
+    }
+
+    await verifyTurnstileToken(body.turnstileToken, ipAddress);
+
+    const result = await createProfile({
+      displayName: body.displayName ?? "",
+      instagramInput: body.instagramInput,
+      linkedinInput: body.linkedinInput,
+    });
+
+    return NextResponse.json(
+      {
+        profileId: result.profileId,
+        editUrl: `${getRequestOrigin(request)}/edit/${result.editToken}`,
+      },
+      { status: 201, headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (error) {
+    return getErrorResponse(error);
+  }
+}
