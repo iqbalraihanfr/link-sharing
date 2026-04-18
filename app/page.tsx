@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Pagination } from "@/components/pagination";
 import { ProfileCard } from "@/components/profile-card";
 import { ProfileSubmitForm } from "@/components/profile-submit-form";
-import { ShieldIcon } from "@/components/icons";
 import { config, isDatabaseConfigured } from "@/lib/config";
 import { ConfigurationError } from "@/lib/errors";
 import { listProfiles } from "@/lib/store";
@@ -41,8 +40,6 @@ export default async function Home({
   };
 
   let databaseReady = isDatabaseConfigured();
-  let databaseNotice =
-    "`SUPABASE_URL` atau `SUPABASE_SECRET_KEY` belum diatur. UI sudah siap, tapi data publik dan submit baru aktif setelah server terkoneksi ke project Supabase.";
 
   if (databaseReady) {
     try {
@@ -50,7 +47,6 @@ export default async function Home({
     } catch (error) {
       if (error instanceof ConfigurationError) {
         databaseReady = false;
-        databaseNotice = error.message;
       } else {
         throw error;
       }
@@ -63,7 +59,6 @@ export default async function Home({
         <section className="hero-grid">
           <ProfileSubmitForm
             databaseReady={databaseReady}
-            databaseNotice={databaseNotice}
             turnstileSiteKey={config.turnstileSiteKey}
           />
 
@@ -121,13 +116,6 @@ export default async function Home({
               </Link>
             ))}
           </div>
-
-          {!databaseReady ? (
-            <div className="notice-strip">
-              <ShieldIcon className="h-4 w-4" />
-              {databaseNotice}
-            </div>
-          ) : null}
 
           {directory.items.length ? (
             <div className="card-grid">

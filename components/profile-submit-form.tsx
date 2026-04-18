@@ -15,11 +15,9 @@ interface SubmissionResult {
 
 export function ProfileSubmitForm({
   databaseReady,
-  databaseNotice,
   turnstileSiteKey,
 }: {
   databaseReady: boolean;
-  databaseNotice?: string;
   turnstileSiteKey: string;
 }) {
   const router = useRouter();
@@ -42,10 +40,7 @@ export function ProfileSubmitForm({
 
     if (!databaseReady) {
       setPending(false);
-      setError(
-        databaseNotice ??
-          "Backend belum siap. Cek konfigurasi Supabase lalu coba lagi.",
-      );
+      setError("Submit belum tersedia. Coba lagi beberapa saat lagi.");
       return;
     }
 
@@ -171,13 +166,6 @@ export function ProfileSubmitForm({
         <button className="button-main mt-2" type="submit" disabled={pending}>
           {pending ? "Menyimpan..." : "Simpan kartu"}
         </button>
-
-        {!databaseReady ? (
-          <p className="text-sm text-[var(--color-muted)]">
-            {databaseNotice ??
-              "`SUPABASE_URL` atau `SUPABASE_SECRET_KEY` belum diatur, jadi form ini masih terkunci sampai koneksi server ke Supabase siap."}
-          </p>
-        ) : null}
 
         {error ? (
           <p className="text-sm text-[var(--color-danger)]" aria-live="polite">
