@@ -1,11 +1,14 @@
+import "server-only";
+
 import { randomUUID } from "node:crypto";
 
-import type { PoolClient } from "pg";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 import { FLAG_THRESHOLD, PROFILE_TTL_DAYS } from "@/lib/config";
-import { query, withTransaction } from "@/lib/db";
-import { AppError } from "@/lib/errors";
+import { AppError, ConfigurationError } from "@/lib/errors";
 import { normalizeProfileInput, normalizeReportReason } from "@/lib/social";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import type { Database } from "@/lib/supabase-types";
 import { createEditToken } from "@/lib/security";
 import type {
   AdminReport,
@@ -17,29 +20,9 @@ import type {
   UpdateProfileInput,
 } from "@/lib/types";
 
-interface ProfileRow {
-  id: string;
-  display_name: string;
-  instagram_handle: string | null;
-  linkedin_slug: string | null;
-  instagram_url: string | null;
-  linkedin_url: string | null;
-  status: PublicProfile["status"];
-  report_count: number;
-  created_at: Date;
-  updated_at: Date;
-  expires_at: Date;
-  edit_token_hash: string;
-}
-
-interface AdminReportRow {
-  id: string;
-  profile_id: string;
-  profile_name: string;
-  reason: string | null;
-  created_at: Date;
-  reporter_ip_hash: string;
-}
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type AdminProfileRow = Database["public"]["Views"]["admin_profiles"]["Row"];
+type AdminReportRow = Database["public"]["Tables"]["reports"]["Row"];
 
 function serializeProfile(row: ProfileRow): PublicProfile {
   return {
@@ -51,39 +34,108 @@ function serializeProfile(row: ProfileRow): PublicProfile {
     linkedinUrl: row.linkedin_url,
     status: row.status,
     reportCount: row.report_count,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
-    expiresAt: row.expires_at.toISOString(),
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+    expiresAt: new Date(row.expires_at).toISOString(),
   };
 }
 
-function serializeAdminReport(row: AdminReportRow): AdminReport {
+function serializeAdminReport(
+  row: AdminReportRow,
+  profileName: string,
+): AdminReport {
   return {
     id: row.id,
     profileId: row.profile_id,
-    profileName: row.profile_name,
+    profileName,
     reason: row.reason,
-    createdAt: row.created_at.toISOString(),
+    createdAt: new Date(row.created_at).toISOString(),
     reporterIpHash: row.reporter_ip_hash,
   };
-}
-
-function escapeLike(value: string) {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 function getExpiryDate() {
   const date = new Date();
   date.setDate(date.getDate() + PROFILE_TTL_DAYS);
-  return date;
+  return date.toISOString();
+}
+
+function buildSearchClause(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/[,%()]/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return null;
+  }
+
+  const pattern = `*${normalized}*`;
+
+  return [
+    `display_name.ilike.${pattern}`,
+    `instagram_handle.ilike.${pattern}`,
+    `linkedin_slug.ilike.${pattern}`,
+  ].join(",");
+}
+
+function isSchemaMissingError(error: PostgrestError) {
+  return (
+    error.code === "PGRST202" ||
+    error.code === "PGRST205" ||
+    /Could not find the table/i.test(error.message) ||
+    /Could not find the function/i.test(error.message) ||
+    /relation .* does not exist/i.test(error.message)
+  );
+}
+
+function throwSupabaseError(error: PostgrestError): never {
+  if (isSchemaMissingError(error)) {
+    throw new ConfigurationError(
+      "Supabase schema belum siap. Jalankan file supabase/migrations/001_initial.sql di SQL Editor lalu coba lagi.",
+    );
+  }
+
+  if (error.code === "401" || error.code === "403") {
+    throw new ConfigurationError(
+      "Supabase credentials tidak valid. Cek SUPABASE_URL dan SUPABASE_SECRET_KEY.",
+    );
+  }
+
+  console.error(error);
+  throw new AppError("Supabase request failed.", {
+    status: 500,
+    code: "SUPABASE_ERROR",
+    expose: false,
+  });
+}
+
+async function executeExpireProfiles() {
+  const { data, error } = await getSupabaseAdmin().rpc("expire_profiles");
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return Number(data ?? 0);
 }
 
 async function refreshExpiredProfiles() {
-  await query(
-    `UPDATE profiles
-      SET status = 'expired', updated_at = NOW()
-      WHERE status IN ('active', 'flagged') AND expires_at <= NOW()`,
-  );
+  await executeExpireProfiles();
+}
+
+async function findProfileRowById(profileId: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data as ProfileRow | null;
 }
 
 export async function listProfiles(
@@ -91,74 +143,87 @@ export async function listProfiles(
 ): Promise<DirectoryResult> {
   await refreshExpiredProfiles();
 
-  const whereClauses = ["status = 'active'", "expires_at > NOW()"];
-  const values: unknown[] = [];
+  const nowIso = new Date().toISOString();
+  const page = Math.max(1, filters.page);
+  const from = (page - 1) * filters.pageSize;
+  const to = from + filters.pageSize - 1;
+
+  let profilesQuery = getSupabaseAdmin()
+    .from("profiles")
+    .select("*", { count: "exact" })
+    .eq("status", "active")
+    .gt("expires_at", nowIso)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
   if (filters.platform === "instagram") {
-    whereClauses.push("instagram_handle IS NOT NULL");
+    profilesQuery = profilesQuery.not("instagram_handle", "is", null);
   }
 
   if (filters.platform === "linkedin") {
-    whereClauses.push("linkedin_slug IS NOT NULL");
+    profilesQuery = profilesQuery.not("linkedin_slug", "is", null);
   }
 
-  if (filters.q) {
-    values.push(`%${escapeLike(filters.q.toLowerCase())}%`);
-    const placeholder = `$${values.length}`;
-    whereClauses.push(
-      `(LOWER(display_name) LIKE ${placeholder} ESCAPE '\\'
-        OR COALESCE(instagram_handle, '') LIKE ${placeholder} ESCAPE '\\'
-        OR COALESCE(linkedin_slug, '') LIKE ${placeholder} ESCAPE '\\')`,
-    );
+  const searchClause = buildSearchClause(filters.q);
+
+  if (searchClause) {
+    profilesQuery = profilesQuery.or(searchClause);
   }
 
-  const page = Math.max(1, filters.page);
-  values.push(filters.pageSize);
-  const limitPlaceholder = `$${values.length}`;
-  values.push((page - 1) * filters.pageSize);
-  const offsetPlaceholder = `$${values.length}`;
+  profilesQuery = profilesQuery.range(from, to);
 
-  const where = whereClauses.join(" AND ");
+  const [profilesResponse, activeResponse, instagramResponse, linkedinResponse] =
+    await Promise.all([
+      profilesQuery,
+      getSupabaseAdmin()
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+        .gt("expires_at", nowIso),
+      getSupabaseAdmin()
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+        .gt("expires_at", nowIso)
+        .not("instagram_handle", "is", null),
+      getSupabaseAdmin()
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")
+        .gt("expires_at", nowIso)
+        .not("linkedin_slug", "is", null),
+    ]);
 
-  const [itemsResult, totalResult, summaryResult] = await Promise.all([
-    query<ProfileRow>(
-      `SELECT *
-        FROM profiles
-        WHERE ${where}
-        ORDER BY updated_at DESC, created_at DESC
-        LIMIT ${limitPlaceholder}
-        OFFSET ${offsetPlaceholder}`,
-      values,
-    ),
-    query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total
-        FROM profiles
-        WHERE ${where}`,
-      values.slice(0, values.length - 2),
-    ),
-    query<{
-      active_count: string;
-      instagram_count: string;
-      linkedin_count: string;
-    }>(`SELECT
-          COUNT(*) FILTER (WHERE status = 'active' AND expires_at > NOW())::text AS active_count,
-          COUNT(*) FILTER (WHERE status = 'active' AND expires_at > NOW() AND instagram_handle IS NOT NULL)::text AS instagram_count,
-          COUNT(*) FILTER (WHERE status = 'active' AND expires_at > NOW() AND linkedin_slug IS NOT NULL)::text AS linkedin_count
-        FROM profiles`),
-  ]);
+  if (profilesResponse.error) {
+    throwSupabaseError(profilesResponse.error);
+  }
 
-  const total = Number(totalResult.rows[0]?.total ?? 0);
+  if (activeResponse.error) {
+    throwSupabaseError(activeResponse.error);
+  }
+
+  if (instagramResponse.error) {
+    throwSupabaseError(instagramResponse.error);
+  }
+
+  if (linkedinResponse.error) {
+    throwSupabaseError(linkedinResponse.error);
+  }
+
+  const total = profilesResponse.count ?? 0;
 
   return {
-    items: itemsResult.rows.map(serializeProfile),
+    items: (profilesResponse.data ?? []).map((row) =>
+      serializeProfile(row as ProfileRow),
+    ),
     total,
     page,
     pageSize: filters.pageSize,
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
     summary: {
-      activeCount: Number(summaryResult.rows[0]?.active_count ?? 0),
-      instagramCount: Number(summaryResult.rows[0]?.instagram_count ?? 0),
-      linkedinCount: Number(summaryResult.rows[0]?.linkedin_count ?? 0),
+      activeCount: activeResponse.count ?? 0,
+      instagramCount: instagramResponse.count ?? 0,
+      linkedinCount: linkedinResponse.count ?? 0,
     },
   };
 }
@@ -168,39 +233,25 @@ export async function createProfile(input: CreateProfileInput) {
   const normalized = normalizeProfileInput(input);
   const token = createEditToken();
   const profileId = randomUUID();
-  const expiresAt = getExpiryDate();
 
-  try {
-    await query(
-      `INSERT INTO profiles (
-        id,
-        display_name,
-        instagram_handle,
-        linkedin_slug,
-        instagram_url,
-        linkedin_url,
-        status,
-        expires_at,
-        edit_token_hash
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8)`,
-      [
-        profileId,
-        normalized.displayName,
-        normalized.instagramHandle,
-        normalized.linkedinSlug,
-        normalized.instagramUrl,
-        normalized.linkedinUrl,
-        expiresAt,
-        token.hash,
-      ],
-    );
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "23505"
-    ) {
+  const { error } = await getSupabaseAdmin()
+    .from("profiles")
+    .insert({
+      id: profileId,
+      display_name: normalized.displayName,
+      instagram_handle: normalized.instagramHandle,
+      linkedin_slug: normalized.linkedinSlug,
+      instagram_url: normalized.instagramUrl,
+      linkedin_url: normalized.linkedinUrl,
+      status: "active",
+      expires_at: getExpiryDate(),
+      edit_token_hash: token.hash,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
       throw new AppError(
         "Username Instagram atau LinkedIn itu sudah terdaftar sebagai kartu aktif.",
         {
@@ -210,7 +261,7 @@ export async function createProfile(input: CreateProfileInput) {
       );
     }
 
-    throw error;
+    throwSupabaseError(error);
   }
 
   return {
@@ -220,73 +271,53 @@ export async function createProfile(input: CreateProfileInput) {
 }
 
 export async function findProfileByEditTokenHash(hash: string) {
-  const result = await query<ProfileRow>(
-    `SELECT *
-      FROM profiles
-      WHERE edit_token_hash = $1
-      LIMIT 1`,
-    [hash],
-  );
+  const { data, error } = await getSupabaseAdmin()
+    .from("profiles")
+    .select("*")
+    .eq("edit_token_hash", hash)
+    .maybeSingle();
 
-  return result.rows[0] ? serializeProfile(result.rows[0]) : null;
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  return data ? serializeProfile(data as ProfileRow) : null;
 }
 
 export async function getProfileById(profileId: string) {
-  const result = await query<ProfileRow>(
-    `SELECT *
-      FROM profiles
-      WHERE id = $1
-      LIMIT 1`,
-    [profileId],
-  );
-
-  return result.rows[0] ? serializeProfile(result.rows[0]) : null;
+  const profile = await findProfileRowById(profileId);
+  return profile ? serializeProfile(profile) : null;
 }
 
 export async function updateProfile(profileId: string, input: UpdateProfileInput) {
   const normalized = normalizeProfileInput(input);
-  const expiresAt = getExpiryDate();
+  const current = await findProfileRowById(profileId);
 
-  try {
-    const result = await query<ProfileRow>(
-      `UPDATE profiles
-        SET
-          display_name = $2,
-          instagram_handle = $3,
-          linkedin_slug = $4,
-          instagram_url = $5,
-          linkedin_url = $6,
-          expires_at = $7,
-          updated_at = NOW(),
-          status = CASE WHEN status = 'expired' THEN 'active' ELSE status END
-        WHERE id = $1
-        RETURNING *`,
-      [
-        profileId,
-        normalized.displayName,
-        normalized.instagramHandle,
-        normalized.linkedinSlug,
-        normalized.instagramUrl,
-        normalized.linkedinUrl,
-        expiresAt,
-      ],
-    );
+  if (!current) {
+    throw new AppError("Profil tidak ditemukan.", {
+      status: 404,
+      code: "PROFILE_NOT_FOUND",
+    });
+  }
 
-    if (!result.rows[0]) {
-      throw new AppError("Profil tidak ditemukan.", {
-        status: 404,
-        code: "PROFILE_NOT_FOUND",
-      });
-    }
+  const { data, error } = await getSupabaseAdmin()
+    .from("profiles")
+    .update({
+      display_name: normalized.displayName,
+      instagram_handle: normalized.instagramHandle,
+      linkedin_slug: normalized.linkedinSlug,
+      instagram_url: normalized.instagramUrl,
+      linkedin_url: normalized.linkedinUrl,
+      expires_at: getExpiryDate(),
+      updated_at: new Date().toISOString(),
+      status: current.status === "expired" ? "active" : current.status,
+    })
+    .eq("id", profileId)
+    .select("*")
+    .maybeSingle();
 
-    return serializeProfile(result.rows[0]);
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "23505"
-    ) {
+  if (error) {
+    if (error.code === "23505") {
       throw new AppError(
         "Username itu sudah dipakai oleh kartu aktif lain. Pakai username yang berbeda atau minta admin merge.",
         {
@@ -296,19 +327,32 @@ export async function updateProfile(profileId: string, input: UpdateProfileInput
       );
     }
 
-    throw error;
+    throwSupabaseError(error);
   }
+
+  if (!data) {
+    throw new AppError("Profil tidak ditemukan.", {
+      status: 404,
+      code: "PROFILE_NOT_FOUND",
+    });
+  }
+
+  return serializeProfile(data as ProfileRow);
 }
 
 export async function deleteProfile(profileId: string) {
-  const result = await query<ProfileRow>(
-    `DELETE FROM profiles
-      WHERE id = $1
-      RETURNING *`,
-    [profileId],
-  );
+  const { data, error } = await getSupabaseAdmin()
+    .from("profiles")
+    .delete()
+    .eq("id", profileId)
+    .select("*")
+    .maybeSingle();
 
-  if (!result.rows[0]) {
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  if (!data) {
     throw new AppError("Profil tidak ditemukan.", {
       status: 404,
       code: "PROFILE_NOT_FOUND",
@@ -322,104 +366,89 @@ export async function reportProfile(
   reason?: string | null,
 ) {
   const cleanReason = normalizeReportReason(reason);
+  const { data, error } = await getSupabaseAdmin()
+    .rpc("report_profile", {
+      p_profile_id: profileId,
+      p_report_id: randomUUID(),
+      p_reason: cleanReason,
+      p_reporter_ip_hash: reporterIpHash,
+      p_flag_threshold: FLAG_THRESHOLD,
+    })
+    .single();
 
-  try {
-    return await withTransaction(async (client) => {
-      const profile = await getProfileRowForUpdate(client, profileId);
-
-      if (!profile || profile.status === "hidden" || profile.status === "expired") {
-        throw new AppError("Kartu ini tidak tersedia untuk dilaporkan.", {
-          status: 404,
-          code: "PROFILE_NOT_FOUND",
-        });
-      }
-
-      await client.query(
-        `INSERT INTO reports (id, profile_id, reason, reporter_ip_hash)
-          VALUES ($1, $2, $3, $4)`,
-        [randomUUID(), profileId, cleanReason, reporterIpHash],
-      );
-
-      const nextCount = profile.report_count + 1;
-      const nextStatus = nextCount >= FLAG_THRESHOLD ? "flagged" : profile.status;
-
-      const updated = await client.query<ProfileRow>(
-        `UPDATE profiles
-          SET report_count = $2, status = $3, updated_at = NOW()
-          WHERE id = $1
-          RETURNING *`,
-        [profileId, nextCount, nextStatus],
-      );
-
-      return serializeProfile(updated.rows[0]);
-    });
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "23505"
-    ) {
+  if (error) {
+    if (error.code === "23505") {
       throw new AppError("Laporan untuk kartu ini sudah pernah dikirim dari koneksi ini.", {
         status: 409,
         code: "REPORT_DUPLICATE",
       });
     }
 
-    throw error;
+    if (error.message.includes("PROFILE_NOT_FOUND")) {
+      throw new AppError("Kartu ini tidak tersedia untuk dilaporkan.", {
+        status: 404,
+        code: "PROFILE_NOT_FOUND",
+      });
+    }
+
+    throwSupabaseError(error);
   }
-}
 
-async function getProfileRowForUpdate(client: PoolClient, profileId: string) {
-  const result = await client.query<ProfileRow>(
-    `SELECT *
-      FROM profiles
-      WHERE id = $1
-      LIMIT 1
-      FOR UPDATE`,
-    [profileId],
-  );
-
-  return result.rows[0] ?? null;
+  return serializeProfile(data as ProfileRow);
 }
 
 export async function getAdminSnapshot(): Promise<AdminSnapshot> {
   await refreshExpiredProfiles();
 
-  const [profilesResult, reportsResult] = await Promise.all([
-    query<ProfileRow>(
-      `SELECT *
-        FROM profiles
-        ORDER BY
-          CASE
-            WHEN status = 'flagged' THEN 0
-            WHEN report_count > 0 THEN 1
-            WHEN status = 'hidden' THEN 2
-            WHEN status = 'expired' THEN 3
-            ELSE 4
-          END,
-          report_count DESC,
-          updated_at DESC
-        LIMIT 120`,
-    ),
-    query<AdminReportRow>(
-      `SELECT
-          reports.id,
-          reports.profile_id,
-          profiles.display_name AS profile_name,
-          reports.reason,
-          reports.created_at,
-          reports.reporter_ip_hash
-        FROM reports
-        INNER JOIN profiles ON profiles.id = reports.profile_id
-        ORDER BY reports.created_at DESC
-        LIMIT 120`,
-    ),
+  const [profilesResponse, reportsResponse] = await Promise.all([
+    getSupabaseAdmin()
+      .from("admin_profiles")
+      .select("*")
+      .order("admin_priority", { ascending: true })
+      .order("report_count", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(120),
+    getSupabaseAdmin()
+      .from("reports")
+      .select("id, profile_id, reason, created_at, reporter_ip_hash")
+      .order("created_at", { ascending: false })
+      .limit(120),
   ]);
 
+  if (profilesResponse.error) {
+    throwSupabaseError(profilesResponse.error);
+  }
+
+  if (reportsResponse.error) {
+    throwSupabaseError(reportsResponse.error);
+  }
+
+  const reports = (reportsResponse.data ?? []) as AdminReportRow[];
+  const profileIds = Array.from(new Set(reports.map((report) => report.profile_id)));
+  const profileNameMap = new Map<string, string>();
+
+  if (profileIds.length) {
+    const { data, error } = await getSupabaseAdmin()
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", profileIds);
+
+    if (error) {
+      throwSupabaseError(error);
+    }
+
+    for (const row of data ?? []) {
+      profileNameMap.set(row.id as string, row.display_name as string);
+    }
+  }
+
   return {
-    profiles: profilesResult.rows.map(serializeProfile),
-    reports: reportsResult.rows.map(serializeAdminReport),
+    profiles: ((profilesResponse.data ?? []) as AdminProfileRow[]).map((row) =>
+      serializeProfile(row),
+    ),
+    reports: reports.map((row) =>
+      serializeAdminReport(row, profileNameMap.get(row.profile_id) ?? "Unknown"),
+    ),
   };
 }
 
@@ -427,22 +456,28 @@ export async function adminUpdateProfileStatus(
   profileId: string,
   status: PublicProfile["status"],
 ) {
-  const result = await query<ProfileRow>(
-    `UPDATE profiles
-      SET status = $2, updated_at = NOW()
-      WHERE id = $1
-      RETURNING *`,
-    [profileId, status],
-  );
+  const { data, error } = await getSupabaseAdmin()
+    .from("profiles")
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profileId)
+    .select("*")
+    .maybeSingle();
 
-  if (!result.rows[0]) {
+  if (error) {
+    throwSupabaseError(error);
+  }
+
+  if (!data) {
     throw new AppError("Profil tidak ditemukan.", {
       status: 404,
       code: "PROFILE_NOT_FOUND",
     });
   }
 
-  return serializeProfile(result.rows[0]);
+  return serializeProfile(data as ProfileRow);
 }
 
 export async function adminDeleteProfile(profileId: string) {
@@ -450,114 +485,40 @@ export async function adminDeleteProfile(profileId: string) {
 }
 
 export async function adminMergeProfiles(sourceProfileId: string, targetProfileId: string) {
-  if (sourceProfileId === targetProfileId) {
-    throw new AppError("Source dan target merge harus berbeda.", {
-      status: 422,
-      code: "MERGE_CONFLICT",
-    });
-  }
+  const { data, error } = await getSupabaseAdmin()
+    .rpc("merge_profiles", {
+      p_source_profile_id: sourceProfileId,
+      p_target_profile_id: targetProfileId,
+    })
+    .single();
 
-  return withTransaction(async (client) => {
-    const source = await getProfileRowForUpdate(client, sourceProfileId);
-    const target = await getProfileRowForUpdate(client, targetProfileId);
+  if (error) {
+    if (
+      error.message.includes("MERGE_CONFLICT") ||
+      error.message.includes("SAME_ID")
+    ) {
+      throw new AppError(
+        "Merge otomatis ditolak karena kedua profil tidak kompatibel atau source dan target sama.",
+        {
+          status: 422,
+          code: "MERGE_CONFLICT",
+        },
+      );
+    }
 
-    if (!source || !target) {
+    if (error.message.includes("PROFILE_NOT_FOUND")) {
       throw new AppError("Source atau target profile tidak ditemukan.", {
         status: 404,
         code: "PROFILE_NOT_FOUND",
       });
     }
 
-    if (
-      source.instagram_handle &&
-      target.instagram_handle &&
-      source.instagram_handle !== target.instagram_handle
-    ) {
-      throw new AppError(
-        "Kedua profil punya username Instagram berbeda, jadi tidak aman untuk di-merge otomatis.",
-        {
-          status: 422,
-          code: "MERGE_CONFLICT",
-        },
-      );
-    }
+    throwSupabaseError(error);
+  }
 
-    if (
-      source.linkedin_slug &&
-      target.linkedin_slug &&
-      source.linkedin_slug !== target.linkedin_slug
-    ) {
-      throw new AppError(
-        "Kedua profil punya slug LinkedIn berbeda, jadi tidak aman untuk di-merge otomatis.",
-        {
-          status: 422,
-          code: "MERGE_CONFLICT",
-        },
-      );
-    }
-
-    await client.query(
-      `DELETE FROM reports
-        WHERE profile_id = $1
-          AND reporter_ip_hash IN (
-            SELECT reporter_ip_hash
-            FROM reports
-            WHERE profile_id = $2
-          )`,
-      [sourceProfileId, targetProfileId],
-    );
-
-    await client.query(`UPDATE reports SET profile_id = $2 WHERE profile_id = $1`, [
-      sourceProfileId,
-      targetProfileId,
-    ]);
-
-    const nextInstagramHandle = target.instagram_handle ?? source.instagram_handle;
-    const nextLinkedInSlug = target.linkedin_slug ?? source.linkedin_slug;
-    const nextInstagramUrl = target.instagram_url ?? source.instagram_url;
-    const nextLinkedInUrl = target.linkedin_url ?? source.linkedin_url;
-    const nextExpiry =
-      target.expires_at > source.expires_at ? target.expires_at : source.expires_at;
-
-    const updatedTarget = await client.query<ProfileRow>(
-      `UPDATE profiles
-        SET
-          instagram_handle = $2,
-          instagram_url = $3,
-          linkedin_slug = $4,
-          linkedin_url = $5,
-          expires_at = $6,
-          updated_at = NOW(),
-          report_count = (
-            SELECT COUNT(*)
-            FROM reports
-            WHERE profile_id = $1
-          )
-        WHERE id = $1
-        RETURNING *`,
-      [
-        targetProfileId,
-        nextInstagramHandle,
-        nextInstagramUrl,
-        nextLinkedInSlug,
-        nextLinkedInUrl,
-        nextExpiry,
-      ],
-    );
-
-    await client.query(`DELETE FROM profiles WHERE id = $1`, [sourceProfileId]);
-
-    return serializeProfile(updatedTarget.rows[0]);
-  });
+  return serializeProfile(data as ProfileRow);
 }
 
 export async function expireProfiles() {
-  const result = await query<{ id: string }>(
-    `UPDATE profiles
-      SET status = 'expired', updated_at = NOW()
-      WHERE status IN ('active', 'flagged') AND expires_at <= NOW()
-      RETURNING id`,
-  );
-
-  return { expiredCount: result.rowCount ?? 0 };
+  return { expiredCount: await executeExpireProfiles() };
 }

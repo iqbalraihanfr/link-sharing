@@ -16,9 +16,11 @@ interface SubmissionResult {
 
 export function ProfileSubmitForm({
   databaseReady,
+  databaseNotice,
   turnstileSiteKey,
 }: {
   databaseReady: boolean;
+  databaseNotice?: string;
   turnstileSiteKey: string;
 }) {
   const router = useRouter();
@@ -173,8 +175,8 @@ export function ProfileSubmitForm({
 
         {!databaseReady ? (
           <p className="text-sm text-[var(--color-muted)]">
-            `DATABASE_URL` belum diatur, jadi form ini masih terkunci sampai Postgres
-            dikonfigurasi.
+            {databaseNotice ??
+              "`SUPABASE_URL` atau `SUPABASE_SECRET_KEY` belum diatur, jadi form ini masih terkunci sampai koneksi server ke Supabase siap."}
           </p>
         ) : null}
 

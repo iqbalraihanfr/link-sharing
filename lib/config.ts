@@ -22,7 +22,11 @@ function normalizeUrl(value?: string) {
 export const config = {
   isProduction,
   appBaseUrl: normalizeUrl(process.env.APP_BASE_URL),
-  databaseUrl: process.env.DATABASE_URL ?? "",
+  supabaseUrl: normalizeUrl(
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
+  ),
+  supabaseSecretKey:
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   appSecret:
     process.env.APP_SECRET ?? "development-secret-change-me-before-production",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
@@ -35,7 +39,7 @@ export const config = {
 };
 
 export function isDatabaseConfigured() {
-  return Boolean(config.databaseUrl);
+  return Boolean(config.supabaseUrl && config.supabaseSecretKey);
 }
 
 export function isTurnstileConfigured() {
@@ -43,9 +47,9 @@ export function isTurnstileConfigured() {
 }
 
 export function assertDatabaseConfigured() {
-  if (!config.databaseUrl) {
+  if (!config.supabaseUrl || !config.supabaseSecretKey) {
     throw new ConfigurationError(
-      "DATABASE_URL is missing. Set your Postgres connection string to enable submissions and moderation.",
+      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY to enable submissions and moderation.",
     );
   }
 }

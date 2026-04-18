@@ -9,7 +9,13 @@ function StatusChip({ status }: { status: ProfileStatus }) {
   return <span className={`status-chip status-${status}`}>{status}</span>;
 }
 
-export function AdminDashboard({ snapshot }: { snapshot: AdminSnapshot }) {
+export function AdminDashboard({
+  snapshot,
+  notice,
+}: {
+  snapshot: AdminSnapshot;
+  notice?: string;
+}) {
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [mergeSourceId, setMergeSourceId] = useState("");
@@ -113,6 +119,7 @@ export function AdminDashboard({ snapshot }: { snapshot: AdminSnapshot }) {
           diaktifkan lagi oleh admin.
         </p>
 
+        {notice ? <p className="mt-4 text-sm text-[var(--color-muted)]">{notice}</p> : null}
         {message ? <p className="mt-4 text-sm text-[var(--color-success)]">{message}</p> : null}
         {error ? <p className="mt-4 text-sm text-[var(--color-danger)]">{error}</p> : null}
       </section>

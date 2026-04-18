@@ -6,7 +6,7 @@ Direktori profil komunitas tanpa login untuk merapikan pertukaran nama, Instagra
 
 - Next.js 16 App Router
 - React 19
-- Postgres via `pg`
+- Supabase Data API via `@supabase/supabase-js`
 - Optional Cloudflare Turnstile untuk submit publik
 
 ## Fitur
@@ -22,7 +22,8 @@ Direktori profil komunitas tanpa login untuk merapikan pertukaran nama, Instagra
 
 Salin `.env.example` ke `.env.local`, lalu isi minimal:
 
-- `DATABASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
 - `APP_SECRET`
 - `ADMIN_PASSWORD` atau `ADMIN_PASSWORD_HASH`
 - `CRON_SECRET`
@@ -39,28 +40,31 @@ Untuk membuat `ADMIN_PASSWORD_HASH`, pakai SHA-256 hex dari password admin kamu.
 Jalur production yang paling sederhana untuk proyek ini:
 
 - deploy app ke Vercel
-- pakai satu project Supabase untuk Postgres
-- isi `DATABASE_URL` di Vercel memakai Supabase connection string `transaction mode` (`:6543`)
+- pakai satu project Supabase
+- jalankan SQL migration sekali di Supabase SQL Editor
+- isi `SUPABASE_URL` dan `SUPABASE_SECRET_KEY` di Vercel
 
 Env production minimal:
 
-- `DATABASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
 - `APP_BASE_URL`
 - `APP_SECRET`
 - `ADMIN_PASSWORD` atau `ADMIN_PASSWORD_HASH`
 - `CRON_SECRET`
 
-Turnstile optional. Aplikasi tetap berjalan tanpa Redis dan tanpa rate limit.
+Publishable key Supabase tidak dibutuhkan oleh arsitektur app ini karena semua akses data berjalan di server.
 
 ### Quick Deploy
 
 1. Buat project Supabase baru dan pilih region terdekat.
-2. Dari Supabase, copy connection string `transaction mode` (`:6543`) dari menu `Connect`.
+2. Buka SQL Editor di Supabase lalu jalankan file [supabase/migrations/001_initial.sql](/Users/iqbalrei/Projects/BI%20Hackthon/link-sharing/supabase/migrations/001_initial.sql).
 3. Import repo ini ke Vercel.
 4. Isi environment variables di Vercel:
 
 ```txt
-DATABASE_URL=<supabase transaction pooler url>
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SECRET_KEY=<your server-only secret key>
 APP_BASE_URL=https://your-project.vercel.app
 APP_SECRET=<random 32+ chars>
 ADMIN_PASSWORD=<your admin password>
@@ -68,7 +72,7 @@ CRON_SECRET=<random 16+ chars>
 ```
 
 5. Deploy.
-6. Setelah deploy, buka homepage lalu submit satu card test agar tabel Postgres dibuat otomatis.
+6. Setelah deploy, buka homepage lalu submit satu card test untuk memastikan Data API dan SQL migration sudah sinkron.
 7. Login ke `/admin/login` untuk cek akses admin.
 
 ## Local Development
@@ -78,7 +82,7 @@ pnpm install
 pnpm dev
 ```
 
-App akan membuat tabel Postgres otomatis saat request pertama berhasil mencapai database.
+Sebelum menjalankan app, pastikan SQL migration sudah dieksekusi di project Supabase yang sama dengan `SUPABASE_URL`.
 
 ## Cron
 

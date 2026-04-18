@@ -5,6 +5,7 @@ import { ProfileCard } from "@/components/profile-card";
 import { ProfileSubmitForm } from "@/components/profile-submit-form";
 import { ShieldIcon, SparkIcon } from "@/components/icons";
 import { config, isDatabaseConfigured } from "@/lib/config";
+import { ConfigurationError } from "@/lib/errors";
 import { listProfiles } from "@/lib/store";
 import { parseDirectoryFilters } from "@/lib/social";
 import type { DirectoryResult, PlatformFilter } from "@/lib/types";
@@ -39,10 +40,21 @@ export default async function Home({
     },
   };
 
-  const databaseReady = isDatabaseConfigured();
+  let databaseReady = isDatabaseConfigured();
+  let databaseNotice =
+    "`SUPABASE_URL` atau `SUPABASE_SECRET_KEY` belum diatur. UI sudah siap, tapi data publik dan submit baru aktif setelah server terkoneksi ke project Supabase.";
 
   if (databaseReady) {
-    directory = await listProfiles(filters);
+    try {
+      directory = await listProfiles(filters);
+    } catch (error) {
+      if (error instanceof ConfigurationError) {
+        databaseReady = false;
+        databaseNotice = error.message;
+      } else {
+        throw error;
+      }
+    }
   }
 
   return (
@@ -77,7 +89,7 @@ export default async function Home({
             <div className="hero-notes">
               <div className="note-pill">
                 <ShieldIcon className="h-4 w-4" />
-                Normalized links, honeypot, rate limit, optional Turnstile
+                Normalized links, honeypot, optional Turnstile, server-side Supabase
               </div>
               <div className="note-pill">
                 <SparkIcon className="h-4 w-4" />
@@ -88,6 +100,7 @@ export default async function Home({
 
           <ProfileSubmitForm
             databaseReady={databaseReady}
+            databaseNotice={databaseNotice}
             turnstileSiteKey={config.turnstileSiteKey}
           />
         </section>
@@ -139,8 +152,7 @@ export default async function Home({
           {!databaseReady ? (
             <div className="notice-strip">
               <ShieldIcon className="h-4 w-4" />
-              `DATABASE_URL` belum diatur. UI sudah siap, tapi data publik dan submit
-              akan aktif setelah Postgres dikonfigurasi.
+              {databaseNotice}
             </div>
           ) : null}
 
