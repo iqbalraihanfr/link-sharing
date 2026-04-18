@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 
-import { ShieldIcon, SparkIcon } from "@/components/icons";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 
 interface SubmissionResult {
@@ -40,6 +39,15 @@ export function ProfileSubmitForm({
     setPending(true);
     setError("");
     setCopied(false);
+
+    if (!databaseReady) {
+      setPending(false);
+      setError(
+        databaseNotice ??
+          "Backend belum siap. Cek konfigurasi Supabase lalu coba lagi.",
+      );
+      return;
+    }
 
     const response = await fetch("/api/profiles", {
       method: "POST",
@@ -94,20 +102,15 @@ export function ProfileSubmitForm({
   }
 
   return (
-    <section className="paper-panel sticky top-6 overflow-hidden">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="eyebrow">Drop A Card</p>
-          <h2 className="panel-title">Submit once, then keep the edit link.</h2>
-        </div>
-        <span className="icon-badge">
-          <SparkIcon className="h-5 w-5" />
-        </span>
+    <section className="paper-panel hero-submit overflow-hidden">
+      <div>
+        <p className="eyebrow">Submit Card</p>
+        <h2 className="panel-title">Masukkan link atau username kamu.</h2>
       </div>
 
       <p className="panel-copy">
-        Nama wajib. Instagram atau LinkedIn minimal satu. Kamu boleh isi handle
-        atau full URL, nanti server yang rapikan ke tautan aman.
+        Nama wajib. Isi Instagram atau LinkedIn minimal satu. Handle atau full URL
+        boleh, nanti sistem rapikan jadi link yang bisa langsung diklik.
       </p>
 
       <form className="form-stack mt-6" onSubmit={handleSubmit}>
@@ -116,34 +119,36 @@ export function ProfileSubmitForm({
           <input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="Contoh: Iqbal Rei"
+            placeholder="Contoh: bandung bondowoso"
             maxLength={80}
             required
-            disabled={!databaseReady || pending}
+            disabled={pending}
           />
         </label>
 
-        <label className="field">
-          <span>Instagram</span>
-          <input
-            value={instagramInput}
-            onChange={(event) => setInstagramInput(event.target.value)}
-            placeholder="@username atau instagram.com/username"
-            maxLength={120}
-            disabled={!databaseReady || pending}
-          />
-        </label>
+        <div className="submit-grid">
+          <label className="field">
+            <span>Instagram</span>
+            <input
+              value={instagramInput}
+              onChange={(event) => setInstagramInput(event.target.value)}
+              placeholder="@username atau instagram.com/username"
+              maxLength={120}
+              disabled={pending}
+            />
+          </label>
 
-        <label className="field">
-          <span>LinkedIn</span>
-          <input
-            value={linkedinInput}
-            onChange={(event) => setLinkedinInput(event.target.value)}
-            placeholder="linkedin.com/in/slug atau slug"
-            maxLength={140}
-            disabled={!databaseReady || pending}
-          />
-        </label>
+          <label className="field">
+            <span>LinkedIn</span>
+            <input
+              value={linkedinInput}
+              onChange={(event) => setLinkedinInput(event.target.value)}
+              placeholder="linkedin.com/in/slug atau slug"
+              maxLength={140}
+              disabled={pending}
+            />
+          </label>
+        </div>
 
         <label className="field field-hidden" aria-hidden="true">
           <span>Website</span>
@@ -161,16 +166,10 @@ export function ProfileSubmitForm({
             onTokenChange={setCaptchaToken}
             resetSignal={captchaResetSignal}
           />
-        ) : (
-          <div className="notice-strip">
-            <ShieldIcon className="h-4 w-4" />
-            Captcha belum dikonfigurasi di environment lokal ini. Submit tetap bisa
-            diuji, tapi production sebaiknya mengaktifkan Turnstile.
-          </div>
-        )}
+        ) : null}
 
-        <button className="button-main mt-2" type="submit" disabled={!databaseReady || pending}>
-          {pending ? "Submitting..." : "Done"}
+        <button className="button-main mt-2" type="submit" disabled={pending}>
+          {pending ? "Menyimpan..." : "Simpan kartu"}
         </button>
 
         {!databaseReady ? (
@@ -191,17 +190,17 @@ export function ProfileSubmitForm({
         <div className="success-note mt-6" aria-live="polite">
           <p className="eyebrow">Saved</p>
           <h3 className="text-lg font-semibold text-[var(--color-ink)]">
-            Card for {result.displayName} is live.
+            Card untuk {result.displayName} sudah aktif.
           </h3>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Link edit ini cuma ditampilkan di sini. Simpan atau copy sekarang.
+            Edit link ini cuma muncul sekali di sini. Simpan sekarang.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link className="chip-link chip-link-active" href={result.editUrl}>
-              Open edit link
+              Buka edit link
             </Link>
             <button type="button" className="chip-link" onClick={copyLink}>
-              {copied ? "Copied" : "Copy link"}
+              {copied ? "Tersalin" : "Copy link"}
             </button>
           </div>
           <p className="mt-3 break-all font-mono text-xs text-[var(--color-muted)]">

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Pagination } from "@/components/pagination";
 import { ProfileCard } from "@/components/profile-card";
 import { ProfileSubmitForm } from "@/components/profile-submit-form";
-import { ShieldIcon, SparkIcon } from "@/components/icons";
+import { ShieldIcon } from "@/components/icons";
 import { config, isDatabaseConfigured } from "@/lib/config";
 import { ConfigurationError } from "@/lib/errors";
 import { listProfiles } from "@/lib/store";
@@ -61,48 +61,25 @@ export default async function Home({
     <div className="min-h-screen">
       <main className="page-shell">
         <section className="hero-grid">
-          <div className="hero-copy">
-            <p className="eyebrow">Community Directory</p>
-            <h1 className="hero-title">
-              Stop losing intros in a noisy room chat.
-            </h1>
-            <p className="hero-text">
-              Satu board publik untuk nama, Instagram, dan LinkedIn. Masuk cepat,
-              cari nanti dengan tenang, lalu edit pakai secret link tanpa bikin akun.
-            </p>
-
-            <div className="stat-strip">
-              <div className="stat-card">
-                <span>Total cards</span>
-                <strong>{directory.summary.activeCount}</strong>
-              </div>
-              <div className="stat-card">
-                <span>Instagram linked</span>
-                <strong>{directory.summary.instagramCount}</strong>
-              </div>
-              <div className="stat-card">
-                <span>LinkedIn linked</span>
-                <strong>{directory.summary.linkedinCount}</strong>
-              </div>
-            </div>
-
-            <div className="hero-notes">
-              <div className="note-pill">
-                <ShieldIcon className="h-4 w-4" />
-                Normalized links, honeypot, optional Turnstile, server-side Supabase
-              </div>
-              <div className="note-pill">
-                <SparkIcon className="h-4 w-4" />
-                Instant publish with report flow and admin moderation
-              </div>
-            </div>
-          </div>
-
           <ProfileSubmitForm
             databaseReady={databaseReady}
             databaseNotice={databaseNotice}
             turnstileSiteKey={config.turnstileSiteKey}
           />
+
+          <div className="hero-copy">
+            <p className="eyebrow">Quick Intro Card</p>
+            <h1 className="hero-title">Isi nama dan salah satu username.</h1>
+            <p className="hero-text">
+              Fokusnya cuma biar link orang tidak tenggelam di chat. Masukkan nama,
+              Instagram, atau LinkedIn, lalu orang lain bisa klik langsung ke profilmu.
+            </p>
+            <p className="hero-helper">
+              <strong>{directory.summary.activeCount}</strong> kartu aktif,{" "}
+              <strong>{directory.summary.instagramCount}</strong> Instagram,{" "}
+              <strong>{directory.summary.linkedinCount}</strong> LinkedIn.
+            </p>
+          </div>
         </section>
 
         <section className="directory-grid">
@@ -111,10 +88,6 @@ export default async function Home({
               <p className="eyebrow">Public Cards</p>
               <h2 className="section-title">Find people by name or handle.</h2>
             </div>
-
-            <Link className="chip-link" href="/admin/login">
-              Admin
-            </Link>
           </header>
 
           <form className="filter-bar" method="GET">
