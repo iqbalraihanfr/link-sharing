@@ -32,8 +32,6 @@ export const config = {
   turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY ?? "",
   sessionCookieSecure:
     process.env.SESSION_COOKIE_SECURE === "false" ? false : isProduction,
-  upstashRedisRestUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
-  upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
 };
 
 export function isDatabaseConfigured() {
@@ -42,10 +40,6 @@ export function isDatabaseConfigured() {
 
 export function isTurnstileConfigured() {
   return Boolean(config.turnstileSiteKey && config.turnstileSecretKey);
-}
-
-export function isUpstashConfigured() {
-  return Boolean(config.upstashRedisRestUrl && config.upstashRedisRestToken);
 }
 
 export function assertDatabaseConfigured() {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { enforceRateLimit } from "@/lib/rate-limit";
 import { getRequestOrigin, getClientIpAddress } from "@/lib/request";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createProfile } from "@/lib/store";
@@ -11,7 +10,6 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
     const ipAddress = getClientIpAddress(request);
-    await enforceRateLimit("profile-submit", ipAddress, 8, "1 h");
 
     const body = (await request.json()) as {
       displayName?: string;

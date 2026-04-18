@@ -7,7 +7,6 @@ Direktori profil komunitas tanpa login untuk merapikan pertukaran nama, Instagra
 - Next.js 16 App Router
 - React 19
 - Postgres via `pg`
-- Upstash Redis rate limiting ketika env tersedia, fallback memori untuk lokal
 - Optional Cloudflare Turnstile untuk submit publik
 
 ## Fitur
@@ -32,10 +31,45 @@ Tambahkan ini untuk hardening production:
 
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
 
 Untuk membuat `ADMIN_PASSWORD_HASH`, pakai SHA-256 hex dari password admin kamu.
+
+## Vercel + Supabase
+
+Jalur production yang paling sederhana untuk proyek ini:
+
+- deploy app ke Vercel
+- pakai satu project Supabase untuk Postgres
+- isi `DATABASE_URL` di Vercel memakai Supabase connection string `transaction mode` (`:6543`)
+
+Env production minimal:
+
+- `DATABASE_URL`
+- `APP_BASE_URL`
+- `APP_SECRET`
+- `ADMIN_PASSWORD` atau `ADMIN_PASSWORD_HASH`
+- `CRON_SECRET`
+
+Turnstile optional. Aplikasi tetap berjalan tanpa Redis dan tanpa rate limit.
+
+### Quick Deploy
+
+1. Buat project Supabase baru dan pilih region terdekat.
+2. Dari Supabase, copy connection string `transaction mode` (`:6543`) dari menu `Connect`.
+3. Import repo ini ke Vercel.
+4. Isi environment variables di Vercel:
+
+```txt
+DATABASE_URL=<supabase transaction pooler url>
+APP_BASE_URL=https://your-project.vercel.app
+APP_SECRET=<random 32+ chars>
+ADMIN_PASSWORD=<your admin password>
+CRON_SECRET=<random 16+ chars>
+```
+
+5. Deploy.
+6. Setelah deploy, buka homepage lalu submit satu card test agar tabel Postgres dibuat otomatis.
+7. Login ke `/admin/login` untuk cek akses admin.
 
 ## Local Development
 

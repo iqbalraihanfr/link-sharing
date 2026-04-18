@@ -6,16 +6,11 @@ import {
   issueAdminSession,
 } from "@/lib/auth";
 import { AppError, getErrorResponse } from "@/lib/errors";
-import { enforceRateLimit } from "@/lib/rate-limit";
-import { getClientIpAddress } from "@/lib/request";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const ipAddress = getClientIpAddress(request);
-    await enforceRateLimit("admin-login", ipAddress, 12, "1 h");
-
     const body = (await request.json()) as { password?: string };
     const password = body.password?.trim() ?? "";
 

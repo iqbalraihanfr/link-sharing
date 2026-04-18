@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { assertEditSession, clearEditSession } from "@/lib/auth";
 import { getErrorResponse } from "@/lib/errors";
-import { enforceRateLimit } from "@/lib/rate-limit";
-import { getClientIpAddress } from "@/lib/request";
 import { deleteProfile, updateProfile } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -15,9 +13,6 @@ export async function PATCH(
   try {
     const { id } = await params;
     assertEditSession(request, id);
-
-    const ipAddress = getClientIpAddress(request);
-    await enforceRateLimit("profile-edit", ipAddress, 30, "1 h");
 
     const body = (await request.json()) as {
       displayName?: string;
@@ -46,9 +41,6 @@ export async function DELETE(
   try {
     const { id } = await params;
     assertEditSession(request, id);
-
-    const ipAddress = getClientIpAddress(request);
-    await enforceRateLimit("profile-delete", ipAddress, 10, "1 h");
 
     await deleteProfile(id);
 
