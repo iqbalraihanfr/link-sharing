@@ -155,9 +155,10 @@ export default async function Home({
             q={filters.q}
             platform={filters.platform}
           />
+
         </section>
 
-        <footer className="footer-subtle">
+        <footer className="mt-8 flex justify-center pb-6">
           <AboutCreator />
         </footer>
       </main>

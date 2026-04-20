@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { AdminSnapshot, ProfileStatus, PublicProfile } from "@/lib/types";
 
@@ -116,7 +116,7 @@ export function AdminDashboard({
   const activeProfiles = snapshot.profiles.filter((p) => p.status === "active").length;
 
   return (
-    <div className="max-w-[1200px] mx-auto flex flex-col gap-8 w-full font-sans pb-12">
+    <div className="max-w-[1200px] mx-auto flex flex-col gap-8 w-full font-sans pb-12 shadow-none">
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-black/10">
         <div>
@@ -280,12 +280,37 @@ function ProfileTable({
     options: { method: "PATCH" | "DELETE"; status?: ProfileStatus }
   ) => void;
 }) {
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
+
+  const sortedProfiles = useMemo(() => {
+    if (!sortOrder) return profiles;
+    return [...profiles].sort((a, b) => {
+      const cmp = a.displayName.localeCompare(b.displayName);
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [profiles, sortOrder]);
+
+  const toggleSort = () => {
+    if (sortOrder === null) setSortOrder("asc");
+    else if (sortOrder === "asc") setSortOrder("desc");
+    else setSortOrder(null);
+  };
+
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full text-left text-sm whitespace-nowrap">
         <thead className="bg-black/[0.01]">
-          <tr className="border-b border-black/5 text-black/50 text-xs">
-            <th className="px-5 py-3 font-medium">Name</th>
+          <tr className="border-b border-black/5 text-black/50 text-xs select-none">
+            <th 
+              className="px-5 py-3 font-medium cursor-pointer hover:bg-black/5 transition-colors flex items-center gap-1 group"
+              onClick={toggleSort}
+              title="Sort by Name"
+            >
+              Name
+              <span className={`text-[10px] transition-opacity ${sortOrder ? "opacity-100 text-black/70" : "opacity-0 group-hover:opacity-40"}`}>
+                {sortOrder === "desc" ? "▼" : "▲"}
+              </span>
+            </th>
             <th className="px-5 py-3 font-medium">Status</th>
             <th className="px-5 py-3 font-medium">Flags</th>
             <th className="px-5 py-3 font-medium">ID</th>
@@ -293,7 +318,7 @@ function ProfileTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
-          {profiles.map((profile) => (
+          {sortedProfiles.map((profile) => (
             <tr key={profile.id} className="hover:bg-black/[0.02] transition-colors group">
               <td className="px-5 py-3 text-black font-medium max-w-[180px] truncate" title={profile.displayName}>
                 {profile.displayName}
