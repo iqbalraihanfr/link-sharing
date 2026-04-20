@@ -62,11 +62,12 @@ export function ProfileSubmitForm({
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
+      profileId?: string;
       editUrl?: string;
       error?: string;
     };
 
-    if (!response.ok || !payload.editUrl) {
+    if (!response.ok || !payload.editUrl || !payload.profileId) {
       setPending(false);
       setError(payload.error ?? "Submit belum berhasil. Coba lagi.");
       setCaptchaResetSignal((value) => value + 1);
@@ -81,6 +82,14 @@ export function ProfileSubmitForm({
       githubInput,
       editUrl: payload.editUrl,
     });
+
+    try {
+      const stored = localStorage.getItem("link_sharing_owned");
+      const map = stored ? JSON.parse(stored) : {};
+      map[payload.profileId] = payload.editUrl;
+      localStorage.setItem("link_sharing_owned", JSON.stringify(map));
+    } catch {}
+
     setDisplayName("");
     setInstagramInput("");
     setLinkedinInput("");

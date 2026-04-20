@@ -1,5 +1,6 @@
 import { GitHubIcon, InstagramIcon, LinkedInIcon } from "@/components/icons";
 import { ReportButton } from "@/components/report-button";
+import { OwnedEditButton } from "@/components/owned-edit-button";
 import type { PublicProfile } from "@/lib/types";
 
 function formatDate(value: string) {
@@ -36,6 +37,7 @@ export function ProfileCard({ profile }: { profile: PublicProfile }) {
   return (
     <article className="profile-card">
       <ReportButton profileId={profile.id} />
+      <OwnedEditButton profileId={profile.id} />
 
       <div className="profile-card-top">
         <div>

@@ -88,3 +88,22 @@ export function GitHubIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function EditIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+      <path
+        d="M21.17 3.83a2.82 2.82 0 0 0-4 0L4 16.3 3 21l4.7-1 12.47-12.47a2.82 2.82 0 0 0 0-4Z"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m14 7 3 3"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
