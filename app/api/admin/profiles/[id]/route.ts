@@ -4,6 +4,7 @@ import { assertAdminSession } from "@/lib/auth";
 import { getErrorResponse, AppError } from "@/lib/errors";
 import { adminDeleteProfile, adminUpdateProfileStatus } from "@/lib/store";
 import type { ProfileStatus } from "@/lib/types";
+import { adminStatusBodySchema, parseRequestBody } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
@@ -25,8 +26,12 @@ export async function PATCH(
   try {
     assertAdminSession(request);
     const { id } = await params;
-    const body = (await request.json()) as { status?: string };
-    const profile = await adminUpdateProfileStatus(id, assertStatus(body.status ?? ""));
+    const body = await parseRequestBody(
+      request,
+      adminStatusBodySchema,
+      "Status moderation tidak valid.",
+    );
+    const profile = await adminUpdateProfileStatus(id, assertStatus(body.status));
 
     return NextResponse.json(profile, {
       headers: { "Cache-Control": "no-store" },

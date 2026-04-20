@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertEditSession, clearEditSession } from "@/lib/auth";
 import { getErrorResponse } from "@/lib/errors";
 import { deleteProfile, updateProfile } from "@/lib/store";
+import { parseRequestBody, updateProfileBodySchema } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
@@ -14,11 +15,11 @@ export async function PATCH(
     const { id } = await params;
     assertEditSession(request, id);
 
-    const body = (await request.json()) as {
-      displayName?: string;
-      instagramInput?: string;
-      linkedinInput?: string;
-    };
+    const body = await parseRequestBody(
+      request,
+      updateProfileBodySchema,
+      "Input profil tidak valid.",
+    );
 
     const profile = await updateProfile(id, {
       displayName: body.displayName ?? "",

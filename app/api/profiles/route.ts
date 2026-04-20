@@ -4,20 +4,18 @@ import { getRequestOrigin, getClientIpAddress } from "@/lib/request";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createProfile } from "@/lib/store";
 import { AppError, getErrorResponse } from "@/lib/errors";
+import { createProfileBodySchema, parseRequestBody } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const ipAddress = getClientIpAddress(request);
-
-    const body = (await request.json()) as {
-      displayName?: string;
-      instagramInput?: string;
-      linkedinInput?: string;
-      website?: string;
-      turnstileToken?: string;
-    };
+    const body = await parseRequestBody(
+      request,
+      createProfileBodySchema,
+      "Input profil tidak valid.",
+    );
 
     if (body.website?.trim()) {
       throw new AppError("Form spam terdeteksi.", {

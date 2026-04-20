@@ -2,6 +2,7 @@ import {
   createHash,
   createHmac,
   randomBytes,
+  scryptSync,
   timingSafeEqual,
 } from "node:crypto";
 
@@ -18,6 +19,12 @@ interface SessionPayload {
   kind: SessionKind;
   sub: string;
 }
+
+const SCRYPT_PREFIX = "scrypt";
+const SCRYPT_COST = 16_384;
+const SCRYPT_BLOCK_SIZE = 8;
+const SCRYPT_PARALLELIZATION = 1;
+const SCRYPT_KEY_LENGTH = 64;
 
 const SESSION_COOKIE_NAMES = {
   admin: "handshake_admin_session",
@@ -100,10 +107,49 @@ export function compareSecret(candidate: string, expectedSecret: string) {
 }
 
 export function compareSecretHash(candidate: string, expectedHash: string) {
-  const left = Buffer.from(sha256(candidate));
-  const right = Buffer.from(expectedHash);
+  const parts = expectedHash.split("$");
+  if (parts.length !== 6) {
+    return false;
+  }
 
-  return left.length === right.length && timingSafeEqual(left, right);
+  const [prefix, costValue, blockSizeValue, parallelizationValue, salt, hash] = parts;
+  if (prefix !== SCRYPT_PREFIX) {
+    return false;
+  }
+
+  const cost = Number(costValue);
+  const blockSize = Number(blockSizeValue);
+  const parallelization = Number(parallelizationValue);
+
+  if (!cost || !blockSize || !parallelization || !salt || !hash) {
+    return false;
+  }
+
+  const derived = scryptSync(candidate, salt, SCRYPT_KEY_LENGTH, {
+    N: cost,
+    r: blockSize,
+    p: parallelization,
+  });
+  const expected = Buffer.from(hash, "base64url");
+
+  return (
+    derived.length === expected.length && timingSafeEqual(derived, expected)
+  );
+}
+
+export function createPasswordHash(secret: string) {
+  const salt = randomBytes(16).toString("base64url");
+  const hash = scryptSync(secret, salt, SCRYPT_KEY_LENGTH, {
+    N: SCRYPT_COST,
+    r: SCRYPT_BLOCK_SIZE,
+    p: SCRYPT_PARALLELIZATION,
+  }).toString("base64url");
+
+  return `${SCRYPT_PREFIX}$${SCRYPT_COST}$${SCRYPT_BLOCK_SIZE}$${SCRYPT_PARALLELIZATION}$${salt}$${hash}`;
+}
+
+export function isSupportedPasswordHashFormat(value: string) {
+  return value.startsWith(`${SCRYPT_PREFIX}$`);
 }
 
 export function getSessionCookieName(kind: SessionKind) {

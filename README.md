@@ -33,7 +33,19 @@ Tambahkan ini untuk hardening production:
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 
-Untuk membuat `ADMIN_PASSWORD_HASH`, pakai SHA-256 hex dari password admin kamu.
+Untuk membuat `ADMIN_PASSWORD_HASH`, gunakan hash `scrypt` (recommended):
+
+```bash
+pnpm hash:admin
+```
+
+Atau jika ingin non-interaktif:
+
+```bash
+pnpm hash:admin -- "your-admin-password"
+```
+
+Format `ADMIN_PASSWORD_HASH` selain `scrypt$N$r$p$salt$hash` tidak lagi didukung.
 
 ## Vercel + Supabase
 

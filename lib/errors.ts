@@ -29,8 +29,9 @@ export class ConfigurationError extends AppError {
 
 export function getErrorResponse(error: unknown) {
   if (error instanceof AppError) {
+    const message = error.expose ? error.message : "Unexpected server error.";
     return NextResponse.json(
-      { error: error.message, code: error.code },
+      { error: message, code: error.code },
       { status: error.status, headers: { "Cache-Control": "no-store" } },
     );
   }

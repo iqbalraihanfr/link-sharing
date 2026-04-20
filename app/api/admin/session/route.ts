@@ -6,13 +6,33 @@ import {
   issueAdminSession,
 } from "@/lib/auth";
 import { AppError, getErrorResponse } from "@/lib/errors";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { getClientIpAddress } from "@/lib/request";
+import { parseRequestBody, adminSessionBodySchema } from "@/lib/validators";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { password?: string };
-    const password = body.password?.trim() ?? "";
+    const ipAddress = getClientIpAddress(request);
+    const rateLimit = consumeRateLimit(`admin:session:${ipAddress}`, {
+      windowMs: 60_000,
+      maxAttempts: 5,
+    });
+
+    if (!rateLimit.allowed) {
+      throw new AppError("Terlalu banyak percobaan login. Coba lagi sebentar.", {
+        status: 429,
+        code: "ADMIN_RATE_LIMITED",
+      });
+    }
+
+    const body = await parseRequestBody(
+      request,
+      adminSessionBodySchema,
+      "Password admin wajib diisi.",
+    );
+    const password = body.password.trim();
 
     if (!password || !assertAdminPassword(password)) {
       throw new AppError("Password admin tidak valid.", {

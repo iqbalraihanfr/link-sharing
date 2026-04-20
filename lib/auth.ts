@@ -12,6 +12,7 @@ import {
   compareSecretHash,
   createSignedSession,
   getSessionCookieName,
+  isSupportedPasswordHashFormat,
   verifySignedSession,
 } from "@/lib/security";
 
@@ -88,6 +89,16 @@ export function assertAdminPassword(password: string) {
   assertAdminPasswordConfigured();
 
   if (config.adminPasswordHash) {
+    if (!isSupportedPasswordHashFormat(config.adminPasswordHash)) {
+      throw new AppError(
+        "Konfigurasi ADMIN_PASSWORD_HASH tidak valid. Gunakan format scrypt$N$r$p$salt$hash.",
+        {
+          status: 503,
+          code: "ADMIN_PASSWORD_HASH_INVALID",
+        },
+      );
+    }
+
     return compareSecretHash(password, config.adminPasswordHash);
   }
 
