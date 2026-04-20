@@ -33,7 +33,7 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="subpage-shell">
+    <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <AdminDashboard snapshot={snapshot} notice={notice} />
     </main>
   );

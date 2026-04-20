@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Pagination } from "@/components/pagination";
 import { ProfileCard } from "@/components/profile-card";
 import { ProfileSubmitForm } from "@/components/profile-submit-form";
+import { AboutCreator } from "@/components/about-creator";
 import { config, isDatabaseConfigured } from "@/lib/config";
 import { ConfigurationError } from "@/lib/errors";
 import { listProfiles } from "@/lib/store";
@@ -157,26 +158,7 @@ export default async function Home({
         </section>
 
         <footer className="footer-subtle">
-          <details className="author-details">
-            <summary className="author-summary" title="Easter Egg">/ built by iqbalraihanfr</summary>
-            <div className="author-content">
-              <ProfileCard profile={{
-                id: "author-easter-egg",
-                displayName: "Iqbal Raihan",
-                instagramHandle: "iqbalehan", 
-                linkedinSlug: "iqbalraihan", 
-                githubUsername: "iqbalraihanfr", 
-                instagramUrl: "https://instagram.com/iqbalehan", 
-                linkedinUrl: "https://linkedin.com/in/iqbalraihan",
-                githubUrl: "https://github.com/iqbalraihanfr",
-                status: "active",
-                reportCount: 0,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
-              }} />
-            </div>
-          </details>
+          <AboutCreator />
         </footer>
       </main>
     </div>
