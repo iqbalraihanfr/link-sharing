@@ -155,6 +155,29 @@ export default async function Home({
             platform={filters.platform}
           />
         </section>
+
+        <footer className="footer-subtle">
+          <details className="author-details">
+            <summary className="author-summary" title="Easter Egg">/ built by iqbalraihanfr</summary>
+            <div className="author-content">
+              <ProfileCard profile={{
+                id: "author-easter-egg",
+                displayName: "Iqbal Raihan",
+                instagramHandle: "iqbalehan", 
+                linkedinSlug: "iqbalraihan", 
+                githubUsername: "iqbalraihanfr", 
+                instagramUrl: "https://instagram.com/iqbalehan", 
+                linkedinUrl: "https://linkedin.com/in/iqbalraihan",
+                githubUrl: "https://github.com/iqbalraihanfr",
+                status: "active",
+                reportCount: 0,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                expiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(),
+              }} />
+            </div>
+          </details>
+        </footer>
       </main>
     </div>
   );
