@@ -1,15 +1,8 @@
 import { GitHubIcon, InstagramIcon, LinkedInIcon } from "@/components/icons";
 import { ReportButton } from "@/components/report-button";
 import { OwnedEditButton } from "@/components/owned-edit-button";
+import { RelativeTime } from "@/components/relative-time";
 import type { PublicProfile } from "@/lib/types";
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
-}
 
 function formatLinkedInLabel(slug: string, displayName: string) {
   const cleaned = slug.replace(/-\d{5,}$/u, "");
@@ -86,8 +79,8 @@ export function ProfileCard({ profile }: { profile: PublicProfile }) {
       </div>
 
       <div className="profile-meta">
-        <span>Updated {formatDate(profile.updatedAt)}</span>
-        <span>Active until {formatDate(profile.expiresAt)}</span>
+        <RelativeTime date={profile.updatedAt} type="updated" />
+        <RelativeTime date={profile.expiresAt} type="expires" />
       </div>
     </article>
   );

@@ -321,6 +321,13 @@ export async function updateProfile(profileId: string, input: UpdateProfileInput
     });
   }
 
+  const now = new Date();
+  const lastUpdate = new Date(current.updated_at);
+  const diffHours = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+
+  // Anti-spam bump: Only bump `updated_at` if the last update was more than 1 hour ago
+  const newUpdatedAt = diffHours >= 1 ? now.toISOString() : current.updated_at;
+
   const { data, error } = await getSupabaseAdmin()
     .from("profiles")
     .update({
@@ -332,7 +339,7 @@ export async function updateProfile(profileId: string, input: UpdateProfileInput
       github_username: normalized.githubUsername,
       github_url: normalized.githubUrl,
       expires_at: getExpiryDate(),
-      updated_at: new Date().toISOString(),
+      updated_at: newUpdatedAt,
       status: current.status === "expired" ? "active" : current.status,
     })
     .eq("id", profileId)
