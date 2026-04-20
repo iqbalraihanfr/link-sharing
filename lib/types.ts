@@ -1,6 +1,6 @@
 export type ProfileStatus = "active" | "flagged" | "hidden" | "expired";
 
-export type PlatformFilter = "all" | "instagram" | "linkedin";
+export type PlatformFilter = "all" | "instagram" | "linkedin" | "github";
 
 export interface PublicProfile {
   id: string;
@@ -9,6 +9,8 @@ export interface PublicProfile {
   linkedinSlug: string | null;
   instagramUrl: string | null;
   linkedinUrl: string | null;
+  githubUsername: string | null;
+  githubUrl: string | null;
   status: ProfileStatus;
   reportCount: number;
   createdAt: string;
@@ -27,6 +29,7 @@ export interface DirectorySummary {
   activeCount: number;
   instagramCount: number;
   linkedinCount: number;
+  githubCount: number;
 }
 
 export interface DirectoryResult {
@@ -42,6 +45,7 @@ export interface CreateProfileInput {
   displayName: string;
   instagramInput?: string | null;
   linkedinInput?: string | null;
+  githubInput?: string | null;
 }
 
 export type UpdateProfileInput = CreateProfileInput;
@@ -52,6 +56,8 @@ export interface NormalizedProfileInput {
   linkedinSlug: string | null;
   instagramUrl: string | null;
   linkedinUrl: string | null;
+  githubUsername: string | null;
+  githubUrl: string | null;
 }
 
 export interface AdminReport {

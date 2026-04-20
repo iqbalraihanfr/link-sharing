@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       displayName: body.displayName ?? "",
       instagramInput: body.instagramInput,
       linkedinInput: body.linkedinInput,
+      githubInput: body.githubInput,
     });
 
     return NextResponse.json(

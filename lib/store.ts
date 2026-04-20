@@ -33,6 +33,8 @@ function serializeProfile(row: ProfileRow): PublicProfile {
     linkedinSlug: row.linkedin_slug,
     instagramUrl: row.instagram_url,
     linkedinUrl: row.linkedin_url,
+    githubUsername: row.github_username,
+    githubUrl: row.github_url,
     status: row.status,
     reportCount: row.report_count,
     createdAt: new Date(row.created_at).toISOString(),
@@ -77,6 +79,7 @@ function buildSearchClause(value: string) {
     `display_name.ilike.${pattern}`,
     `instagram_handle.ilike.${pattern}`,
     `linkedin_slug.ilike.${pattern}`,
+    `github_username.ilike.${pattern}`,
   ].join(",");
 }
 
@@ -165,6 +168,10 @@ export async function listProfiles(
     profilesQuery = profilesQuery.not("linkedin_slug", "is", null);
   }
 
+  if (filters.platform === "github") {
+    profilesQuery = profilesQuery.not("github_username", "is", null);
+  }
+
   const searchClause = buildSearchClause(filters.q);
 
   if (searchClause) {
@@ -173,7 +180,7 @@ export async function listProfiles(
 
   profilesQuery = profilesQuery.range(from, to);
 
-  const [profilesResponse, activeResponse, instagramResponse, linkedinResponse] =
+  const [profilesResponse, activeResponse, instagramResponse, linkedinResponse, githubResponse] =
     await Promise.all([
       profilesQuery,
       getSupabaseAdmin()
@@ -193,6 +200,12 @@ export async function listProfiles(
         .in("status", PUBLIC_VISIBLE_STATUSES)
         .gt("expires_at", nowIso)
         .not("linkedin_slug", "is", null),
+      getSupabaseAdmin()
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .in("status", PUBLIC_VISIBLE_STATUSES)
+        .gt("expires_at", nowIso)
+        .not("github_username", "is", null),
     ]);
 
   if (profilesResponse.error) {
@@ -211,6 +224,10 @@ export async function listProfiles(
     throwSupabaseError(linkedinResponse.error);
   }
 
+  if (githubResponse.error) {
+    throwSupabaseError(githubResponse.error);
+  }
+
   const total = profilesResponse.count ?? 0;
 
   return {
@@ -225,6 +242,7 @@ export async function listProfiles(
       activeCount: activeResponse.count ?? 0,
       instagramCount: instagramResponse.count ?? 0,
       linkedinCount: linkedinResponse.count ?? 0,
+      githubCount: githubResponse.count ?? 0,
     },
   };
 }
@@ -244,6 +262,8 @@ export async function createProfile(input: CreateProfileInput) {
       linkedin_slug: normalized.linkedinSlug,
       instagram_url: normalized.instagramUrl,
       linkedin_url: normalized.linkedinUrl,
+      github_username: normalized.githubUsername,
+      github_url: normalized.githubUrl,
       status: "active",
       expires_at: getExpiryDate(),
       edit_token_hash: token.hash,
@@ -309,6 +329,8 @@ export async function updateProfile(profileId: string, input: UpdateProfileInput
       linkedin_slug: normalized.linkedinSlug,
       instagram_url: normalized.instagramUrl,
       linkedin_url: normalized.linkedinUrl,
+      github_username: normalized.githubUsername,
+      github_url: normalized.githubUrl,
       expires_at: getExpiryDate(),
       updated_at: new Date().toISOString(),
       status: current.status === "expired" ? "active" : current.status,

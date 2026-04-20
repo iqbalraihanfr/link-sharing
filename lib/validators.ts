@@ -41,6 +41,7 @@ export const createProfileBodySchema = z
     displayName: z.string().optional(),
     instagramInput: z.string().optional(),
     linkedinInput: z.string().optional(),
+    githubInput: z.string().optional(),
     website: z.string().optional(),
     turnstileToken: z.string().optional(),
   })
@@ -51,6 +52,7 @@ export const updateProfileBodySchema = z
     displayName: z.string().optional(),
     instagramInput: z.string().optional(),
     linkedinInput: z.string().optional(),
+    githubInput: z.string().optional(),
   })
   .strict();
 

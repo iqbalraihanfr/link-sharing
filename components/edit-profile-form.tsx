@@ -10,6 +10,7 @@ export function EditProfileForm({ profile }: { profile: PublicProfile }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [instagramInput, setInstagramInput] = useState(profile.instagramHandle ?? "");
   const [linkedinInput, setLinkedinInput] = useState(profile.linkedinSlug ?? "");
+  const [githubInput, setGitHubInput] = useState(profile.githubUsername ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -29,6 +30,7 @@ export function EditProfileForm({ profile }: { profile: PublicProfile }) {
         displayName,
         instagramInput,
         linkedinInput,
+        githubInput,
       }),
     });
 
@@ -111,6 +113,17 @@ export function EditProfileForm({ profile }: { profile: PublicProfile }) {
           onChange={(event) => setLinkedinInput(event.target.value)}
           placeholder="linkedin slug"
           maxLength={140}
+          disabled={pending}
+        />
+      </label>
+
+      <label className="field">
+        <span>GitHub</span>
+        <input
+          value={githubInput}
+          onChange={(event) => setGitHubInput(event.target.value)}
+          placeholder="github username"
+          maxLength={80}
           disabled={pending}
         />
       </label>

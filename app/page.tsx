@@ -36,6 +36,7 @@ export default async function Home({
       activeCount: 0,
       instagramCount: 0,
       linkedinCount: 0,
+      githubCount: 0,
     },
   };
 
@@ -53,6 +54,8 @@ export default async function Home({
     }
   }
 
+  const hasActiveFilter = !!(filters.q || filters.platform !== "all");
+
   return (
     <div className="min-h-screen">
       <main className="page-shell">
@@ -67,12 +70,13 @@ export default async function Home({
             <h1 className="hero-title">Isi nama dan salah satu username.</h1>
             <p className="hero-text">
               Fokusnya cuma biar link orang tidak tenggelam di chat. Masukkan nama,
-              Instagram, atau LinkedIn, lalu orang lain bisa klik langsung ke profilmu.
+              Instagram, LinkedIn, atau GitHub, lalu orang lain bisa klik langsung ke profilmu.
             </p>
             <p className="hero-helper">
               <strong>{directory.summary.activeCount}</strong> kartu aktif,{" "}
               <strong>{directory.summary.instagramCount}</strong> Instagram,{" "}
-              <strong>{directory.summary.linkedinCount}</strong> LinkedIn.
+              <strong>{directory.summary.linkedinCount}</strong> LinkedIn,{" "}
+              <strong>{directory.summary.githubCount}</strong> GitHub.
             </p>
           </div>
         </section>
@@ -85,34 +89,44 @@ export default async function Home({
             </div>
           </header>
 
-          <form className="filter-bar" method="GET">
-            <label className="field filter-field">
-              <span>Search</span>
-              <input name="q" defaultValue={filters.q} placeholder="Nama, IG, atau LinkedIn" />
-            </label>
+          <details className="filter-collapsible" open={hasActiveFilter || undefined}>
+            <summary className="filter-toggle">
+              <span className="filter-toggle-label">Filter &amp; Search</span>
+              <span className="filter-toggle-icon" aria-hidden="true" />
+            </summary>
 
-            <label className="field filter-field">
-              <span>Platform</span>
-              <select name="platform" defaultValue={filters.platform}>
-                <option value="all">All</option>
-                <option value="instagram">Instagram</option>
-                <option value="linkedin">LinkedIn</option>
-              </select>
-            </label>
+            <div className="filter-content">
+              <form className="filter-bar" method="GET">
+                <label className="field filter-field">
+                  <span>Search</span>
+                  <input name="q" defaultValue={filters.q} placeholder="Nama, IG, LinkedIn, atau GitHub" />
+                </label>
 
-            <button className="button-main filter-button" type="submit">
-              Apply
-            </button>
-          </form>
+                <label className="field filter-field">
+                  <span>Platform</span>
+                  <select name="platform" defaultValue={filters.platform}>
+                    <option value="all">All</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="linkedin">LinkedIn</option>
+                    <option value="github">GitHub</option>
+                  </select>
+                </label>
+
+                <button className="button-main filter-button" type="submit">
+                  Apply
+                </button>
+              </form>
+            </div>
+          </details>
 
           <div className="filter-chips">
-            {(["all", "instagram", "linkedin"] as const).map((platform) => (
+            {(["all", "instagram", "linkedin", "github"] as const).map((platform) => (
               <Link
                 key={platform}
                 className={`chip-link ${filters.platform === platform ? "chip-link-active" : ""}`}
                 href={buildFilterHref(platform, filters.q)}
               >
-                {platform === "all" ? "All cards" : platform}
+                {platform === "all" ? "All cards" : platform === "github" ? "GitHub" : platform}
               </Link>
             ))}
           </div>

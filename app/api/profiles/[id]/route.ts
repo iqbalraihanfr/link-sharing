@@ -25,6 +25,7 @@ export async function PATCH(
       displayName: body.displayName ?? "",
       instagramInput: body.instagramInput,
       linkedinInput: body.linkedinInput,
+      githubInput: body.githubInput,
     });
 
     return NextResponse.json(profile, {

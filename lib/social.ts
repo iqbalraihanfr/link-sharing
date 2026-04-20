@@ -8,9 +8,11 @@ import type {
 
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
 const LINKEDIN_HOSTS = new Set(["linkedin.com", "www.linkedin.com"]);
+const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
 
 const INSTAGRAM_HANDLE_PATTERN = /^[a-z0-9._]{1,30}$/;
 const LINKEDIN_SLUG_PATTERN = /^[a-z0-9-]{3,100}$/;
+const GITHUB_USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/;
 const GENERIC_DISPLAY_NAME_TOKENS = new Set([
   "test",
   "testing",
@@ -83,6 +85,10 @@ export function buildInstagramUrl(handle: string) {
 
 export function buildLinkedInUrl(slug: string) {
   return `https://www.linkedin.com/in/${slug}/`;
+}
+
+export function buildGitHubUrl(username: string) {
+  return `https://github.com/${username}`;
 }
 
 export function normalizeDisplayName(value: string) {
@@ -190,16 +196,58 @@ export function normalizeLinkedInInput(input?: string | null) {
   return candidate;
 }
 
+export function normalizeGitHubInput(input?: string | null) {
+  const cleaned = cleanInput(input);
+  if (!cleaned) return null;
+
+  const url = parseMaybeUrl(cleaned);
+  let candidate = cleaned;
+
+  if (url) {
+    if (!GITHUB_HOSTS.has(url.hostname.toLowerCase())) {
+      throw new AppError("Link GitHub harus memakai domain github.com.", {
+        status: 422,
+        code: "INVALID_GITHUB",
+      });
+    }
+
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (segments.length !== 1) {
+      throw new AppError("Link GitHub harus menuju satu username.", {
+        status: 422,
+        code: "INVALID_GITHUB",
+      });
+    }
+
+    [candidate] = segments;
+  }
+
+  candidate = candidate.replace(/^@/, "").toLowerCase();
+
+  if (!GITHUB_USERNAME_PATTERN.test(candidate)) {
+    throw new AppError(
+      "Username GitHub hanya boleh berisi huruf, angka, dan tanda hubung (tidak boleh diawali/diakhiri tanda hubung).",
+      {
+        status: 422,
+        code: "INVALID_GITHUB",
+      },
+    );
+  }
+
+  return candidate;
+}
+
 export function normalizeProfileInput(
   input: CreateProfileInput,
 ): NormalizedProfileInput {
   const displayName = normalizeDisplayName(input.displayName);
   const instagramHandle = normalizeInstagramInput(input.instagramInput);
   const linkedinSlug = normalizeLinkedInInput(input.linkedinInput);
+  const githubUsername = normalizeGitHubInput(input.githubInput);
 
-  if (!instagramHandle && !linkedinSlug) {
+  if (!instagramHandle && !linkedinSlug && !githubUsername) {
     throw new AppError(
-      "Isi minimal satu username Instagram atau LinkedIn sebelum submit.",
+      "Isi minimal satu username Instagram, LinkedIn, atau GitHub sebelum submit.",
       {
         status: 422,
         code: "SOCIAL_REQUIRED",
@@ -213,6 +261,8 @@ export function normalizeProfileInput(
     linkedinSlug,
     instagramUrl: instagramHandle ? buildInstagramUrl(instagramHandle) : null,
     linkedinUrl: linkedinSlug ? buildLinkedInUrl(linkedinSlug) : null,
+    githubUsername,
+    githubUrl: githubUsername ? buildGitHubUrl(githubUsername) : null,
   };
 }
 
@@ -225,7 +275,7 @@ export function parseDirectoryFilters(
   const pageParam = typeof searchParams.page === "string" ? Number(searchParams.page) : 1;
 
   const platform: PlatformFilter =
-    rawPlatform === "instagram" || rawPlatform === "linkedin"
+    rawPlatform === "instagram" || rawPlatform === "linkedin" || rawPlatform === "github"
       ? rawPlatform
       : "all";
 

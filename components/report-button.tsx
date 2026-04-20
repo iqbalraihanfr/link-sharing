@@ -33,22 +33,26 @@ export function ReportButton({ profileId }: { profileId: string }) {
     setState("done");
   }
 
+  const label =
+    state === "loading" ? "Reporting..." : state === "done" ? "Reported" : "Report";
+
   return (
-    <div className="flex flex-col items-end gap-2">
+    <>
       <button
         type="button"
-        className="report-button"
+        className={`report-icon-button ${state === "done" ? "report-icon-done" : ""}`}
         onClick={handleReport}
         disabled={state !== "idle"}
+        title={label}
+        aria-label={label}
       >
-        <FlagIcon className="h-4 w-4" />
-        {state === "loading" ? "Reporting..." : state === "done" ? "Reported" : "Report"}
+        <FlagIcon className="report-icon-svg" />
       </button>
       {error ? (
-        <p className="text-right text-xs text-[var(--color-danger)]" aria-live="polite">
+        <p className="report-error-tooltip" aria-live="polite">
           {error}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }

@@ -9,6 +9,8 @@ export interface Database {
           linkedin_slug: string | null;
           instagram_url: string | null;
           linkedin_url: string | null;
+          github_username: string | null;
+          github_url: string | null;
           status: "active" | "flagged" | "hidden" | "expired";
           created_at: string;
           updated_at: string;
@@ -23,6 +25,8 @@ export interface Database {
           linkedin_slug?: string | null;
           instagram_url?: string | null;
           linkedin_url?: string | null;
+          github_username?: string | null;
+          github_url?: string | null;
           status?: "active" | "flagged" | "hidden" | "expired";
           created_at?: string;
           updated_at?: string;
@@ -37,6 +41,8 @@ export interface Database {
           linkedin_slug?: string | null;
           instagram_url?: string | null;
           linkedin_url?: string | null;
+          github_username?: string | null;
+          github_url?: string | null;
           status?: "active" | "flagged" | "hidden" | "expired";
           created_at?: string;
           updated_at?: string;

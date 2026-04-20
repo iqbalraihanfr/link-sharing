@@ -10,6 +10,7 @@ interface SubmissionResult {
   displayName: string;
   instagramInput: string;
   linkedinInput: string;
+  githubInput: string;
   editUrl: string;
 }
 
@@ -24,6 +25,7 @@ export function ProfileSubmitForm({
   const [displayName, setDisplayName] = useState("");
   const [instagramInput, setInstagramInput] = useState("");
   const [linkedinInput, setLinkedinInput] = useState("");
+  const [githubInput, setGitHubInput] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
@@ -53,6 +55,7 @@ export function ProfileSubmitForm({
         displayName,
         instagramInput,
         linkedinInput,
+        githubInput,
         website: honeypot,
         turnstileToken: captchaToken,
       }),
@@ -75,11 +78,13 @@ export function ProfileSubmitForm({
       displayName,
       instagramInput,
       linkedinInput,
+      githubInput,
       editUrl: payload.editUrl,
     });
     setDisplayName("");
     setInstagramInput("");
     setLinkedinInput("");
+    setGitHubInput("");
     setHoneypot("");
     setCaptchaToken("");
     setCaptchaResetSignal((value) => value + 1);
@@ -140,6 +145,17 @@ export function ProfileSubmitForm({
               onChange={(event) => setLinkedinInput(event.target.value)}
               placeholder="linkedin.com/in/slug atau slug"
               maxLength={140}
+              disabled={pending}
+            />
+          </label>
+
+          <label className="field">
+            <span>GitHub</span>
+            <input
+              value={githubInput}
+              onChange={(event) => setGitHubInput(event.target.value)}
+              placeholder="github.com/username atau username"
+              maxLength={80}
               disabled={pending}
             />
           </label>

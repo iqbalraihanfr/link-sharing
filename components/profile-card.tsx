@@ -1,4 +1,4 @@
-import { InstagramIcon, LinkedInIcon } from "@/components/icons";
+import { GitHubIcon, InstagramIcon, LinkedInIcon } from "@/components/icons";
 import { ReportButton } from "@/components/report-button";
 import type { PublicProfile } from "@/lib/types";
 
@@ -35,12 +35,13 @@ export function ProfileCard({ profile }: { profile: PublicProfile }) {
 
   return (
     <article className="profile-card">
+      <ReportButton profileId={profile.id} />
+
       <div className="profile-card-top">
         <div>
           <p className="eyebrow">Card</p>
           <h3 className="profile-name">{profile.displayName}</h3>
         </div>
-        <ReportButton profileId={profile.id} />
       </div>
 
       <div className="profile-links">
@@ -66,6 +67,18 @@ export function ProfileCard({ profile }: { profile: PublicProfile }) {
           >
             <LinkedInIcon className="social-icon social-icon-linkedin" />
             <span>{linkedInLabel}</span>
+          </a>
+        ) : null}
+
+        {profile.githubUsername ? (
+          <a
+            className="social-link social-link-github"
+            href={profile.githubUrl ?? "#"}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+          >
+            <GitHubIcon className="social-icon social-icon-github" />
+            <span>{profile.githubUsername}</span>
           </a>
         ) : null}
       </div>
