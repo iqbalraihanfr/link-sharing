@@ -22,15 +22,23 @@ function formatLinkedInLabel(slug: string, displayName: string) {
   return slug;
 }
 
-export function ProfileCard({ profile }: { profile: PublicProfile }) {
+export function ProfileCard({
+  profile,
+  showActions = true,
+  className = "",
+}: {
+  profile: PublicProfile;
+  showActions?: boolean;
+  className?: string;
+}) {
   const linkedInLabel = profile.linkedinSlug
     ? formatLinkedInLabel(profile.linkedinSlug, profile.displayName)
     : null;
 
   return (
-    <article className="profile-card">
-      <ReportButton profileId={profile.id} />
-      <OwnedEditButton profileId={profile.id} />
+    <article className={`profile-card ${className}`.trim()}>
+      {showActions ? <ReportButton profileId={profile.id} /> : null}
+      {showActions ? <OwnedEditButton profileId={profile.id} /> : null}
 
       <div className="profile-card-top">
         <div>

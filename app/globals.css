@@ -367,6 +367,7 @@ select:focus {
   }
 
   .profile-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -665,6 +666,107 @@ select:focus {
     padding: 0 1.15rem 1.15rem;
   }
 
+  .creator-dialog {
+    width: min(100% - 1.5rem, 29rem);
+    max-width: 29rem;
+    max-height: calc(100vh - 1rem);
+    margin: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .creator-dialog::backdrop {
+    background:
+      radial-gradient(circle at top, rgba(255, 249, 238, 0.16), transparent 45%),
+      rgba(28, 19, 8, 0.42);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+
+  .creator-dialog.creator-dialog-open::backdrop {
+    opacity: 1;
+  }
+
+  .creator-dialog-shell {
+    padding: 1rem;
+  }
+
+  .creator-dialog-content {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(82, 68, 48, 0.12);
+    border-radius: 2rem;
+    background:
+      linear-gradient(160deg, rgba(255, 250, 243, 0.98), rgba(252, 240, 220, 0.92)),
+      var(--color-paper);
+    box-shadow: 0 32px 80px rgba(37, 22, 7, 0.28);
+    transform: translateY(20px) scale(0.97);
+    opacity: 0;
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .creator-dialog.creator-dialog-open .creator-dialog-content {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+
+  .creator-dialog-close {
+    position: absolute;
+    top: 0.95rem;
+    right: 0.95rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    border: 1px solid rgba(82, 68, 48, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    color: var(--color-muted);
+    font-size: 1.45rem;
+    line-height: 1;
+    box-shadow: 0 10px 22px rgba(51, 31, 10, 0.12);
+    transition:
+      transform 140ms ease,
+      color 140ms ease,
+      background 140ms ease,
+      border-color 140ms ease;
+  }
+
+  .creator-dialog-close:hover,
+  .creator-dialog-close:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(159, 64, 37, 0.22);
+    background: rgba(255, 248, 242, 0.96);
+    color: var(--color-danger);
+    outline: none;
+  }
+
+  .creator-profile-card {
+    min-height: unset;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 1.4rem;
+    padding-top: 1.55rem;
+  }
+
+  .creator-profile-card:hover,
+  .creator-profile-card:focus-within {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .creator-profile-card .social-link {
+    max-width: 100%;
+  }
+
 
 }
 
@@ -756,5 +858,26 @@ select:focus {
   .report-icon-button {
     top: 0.7rem;
     right: 0.7rem;
+  }
+
+  .creator-dialog {
+    width: min(100% - 1rem, 26rem);
+  }
+
+  .creator-dialog-shell {
+    padding: 0.45rem;
+  }
+
+  .creator-dialog-content {
+    border-radius: 1.7rem;
+  }
+
+  .creator-profile-card {
+    padding: 1.15rem;
+    padding-top: 1.35rem;
+  }
+
+  .creator-profile-card .social-link {
+    width: 100%;
   }
 }
