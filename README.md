@@ -1,91 +1,37 @@
-# Handshake Archive
+# Local PDF Toolkit
 
-Direktori profil komunitas tanpa login untuk merapikan pertukaran nama, Instagram, dan LinkedIn di room chat yang ramai.
+Alat PDF yang berjalan **100% di browser**. Tidak ada upload, tidak ada akun,
+tidak ada layanan pihak ketiga seperti iLovePDF. File kamu tidak pernah keluar
+dari perangkatmu.
 
-## Stack
+Fitur pertama yang sudah jalan: **buka / hapus password PDF**.
 
-- Next.js 16 App Router
-- React 19
-- Supabase Data API via `@supabase/supabase-js`
-- Optional Cloudflare Turnstile untuk submit publik
+## Kenapa lokal?
+
+Semua pemrosesan PDF dilakukan di dalam browser memakai
+[mupdf](https://mupdf.readthedocs.io/) yang dikompilasi ke WebAssembly. PDF
+hanya dibaca ke memori tab, diproses, lalu hasilnya diunduh — tidak ada byte
+yang dikirim ke server mana pun. Engine wasm pun di-host sendiri dari `/wasm`,
+bukan dari CDN luar.
 
 ## Fitur
 
-- Directory publik dengan search, filter platform, dan pagination
-- Submit anonim dengan normalisasi handle atau URL ke canonical link yang aman
-- Secret edit link satu kali tampil setelah submit
-- Report flow anonim dan auto-flagging
-- Admin console dengan password-protected session, hide or activate, delete, dan merge duplicates
-- Expiry flow 90 hari plus cron endpoint untuk menandai data basi
+- **Buka Password PDF** — hapus password (user/owner) dan batasan
+  (print/copy/edit) dari PDF milikmu, asal kamu tahu passwordnya.
+- Segera: Kompres, Gabung, Pisah/Ambil halaman, Gambar↔PDF.
 
-## Environment
+## Cara pakai
 
-Salin `.env.example` ke `.env.local`, lalu isi minimal:
+1. Buka aplikasi.
+2. Tarik PDF ke kotak unggah (file tetap di perangkatmu).
+3. Kalau diminta, masukkan password PDF.
+4. Klik **Buka & hapus password** — hasilnya langsung terunduh tanpa enkripsi.
 
-- `SUPABASE_URL`
-- `SUPABASE_SECRET_KEY`
-- `APP_SECRET`
-- `ADMIN_PASSWORD` atau `ADMIN_PASSWORD_HASH`
-- `CRON_SECRET`
+## Stack
 
-Tambahkan ini untuk hardening production:
-
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
-- `TURNSTILE_SECRET_KEY`
-
-Untuk membuat `ADMIN_PASSWORD_HASH`, gunakan hash `scrypt` (recommended):
-
-```bash
-pnpm hash:admin
-```
-
-Atau jika ingin non-interaktif:
-
-```bash
-pnpm hash:admin -- "your-admin-password"
-```
-
-Format `ADMIN_PASSWORD_HASH` selain `scrypt$N$r$p$salt$hash` tidak lagi didukung.
-
-## Vercel + Supabase
-
-Jalur production yang paling sederhana untuk proyek ini:
-
-- deploy app ke Vercel
-- pakai satu project Supabase
-- jalankan SQL migration sekali di Supabase SQL Editor
-- isi `SUPABASE_URL` dan `SUPABASE_SECRET_KEY` di Vercel
-
-Env production minimal:
-
-- `SUPABASE_URL`
-- `SUPABASE_SECRET_KEY`
-- `APP_BASE_URL`
-- `APP_SECRET`
-- `ADMIN_PASSWORD` atau `ADMIN_PASSWORD_HASH`
-- `CRON_SECRET`
-
-Publishable key Supabase tidak dibutuhkan oleh arsitektur app ini karena semua akses data berjalan di server.
-
-### Quick Deploy
-
-1. Buat project Supabase baru dan pilih region terdekat.
-2. Buka SQL Editor di Supabase lalu jalankan file [supabase/migrations/001_initial.sql](/Users/iqbalrei/Projects/BI%20Hackthon/link-sharing/supabase/migrations/001_initial.sql).
-3. Import repo ini ke Vercel.
-4. Isi environment variables di Vercel:
-
-```txt
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SECRET_KEY=<your server-only secret key>
-APP_BASE_URL=https://your-project.vercel.app
-APP_SECRET=<random 32+ chars>
-ADMIN_PASSWORD=<your admin password>
-CRON_SECRET=<random 16+ chars>
-```
-
-5. Deploy.
-6. Setelah deploy, buka homepage lalu submit satu card test untuk memastikan Data API dan SQL migration sudah sinkron.
-7. Login ke `/admin/login` untuk cek akses admin.
+- Next.js 16 App Router + React 19
+- mupdf (WASM) untuk semua operasi PDF — dijalankan di sisi klien
+- Tailwind CSS v4
 
 ## Local Development
 
@@ -94,16 +40,27 @@ pnpm install
 pnpm dev
 ```
 
-Sebelum menjalankan app, pastikan SQL migration sudah dieksekusi di project Supabase yang sama dengan `SUPABASE_URL`.
+`pnpm dev` dan `pnpm build` otomatis menyalin engine mupdf ke `public/wasm`
+lewat `scripts/copy-mupdf-wasm.mjs` (lihat `predev`/`prebuild`). Folder
+`public/wasm` di-`.gitignore` karena di-generate dari `node_modules`.
 
-## Cron
-
-Endpoint cron tersedia di `GET` atau `POST /api/cron/expire`.
-
-Sertakan header berikut:
-
-```txt
-Authorization: Bearer <CRON_SECRET>
+```bash
+pnpm build   # build produksi
+pnpm start   # jalankan hasil build
+pnpm check   # lint + typecheck
 ```
 
-Di production, jadwalkan endpoint ini minimal sekali sehari.
+## Arsitektur singkat
+
+- `components/pdf-unlock.tsx` — UI klien (drag & drop, password, unduh).
+- `lib/pdf/unlock.ts` — logika decrypt: inspeksi proteksi, autentikasi
+  password, lalu `saveToBuffer("decrypt,…")`.
+- `lib/pdf/mupdf-loader.ts` — memuat mupdf dari `/wasm` saat dibutuhkan.
+- `scripts/copy-mupdf-wasm.mjs` — menyalin `mupdf.js`, `mupdf-wasm.js`, dan
+  `mupdf-wasm.wasm` ke `public/wasm`.
+
+## Catatan lisensi
+
+mupdf berlisensi **AGPL-3.0**. Untuk pemakaian pribadi/lokal ini tidak masalah.
+Jika nanti ingin mendistribusikan sebagai produk tertutup, perhatikan kewajiban
+lisensi AGPL atau pertimbangkan lisensi komersial dari Artifex.
