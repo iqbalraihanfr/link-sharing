@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { Analytics } from "@vercel/analytics/next";
 import {
   Bricolage_Grotesque,
   Cormorant_Garamond,
   IBM_Plex_Mono,
 } from "next/font/google";
 
-import { APP_NAME, config } from "@/lib/config";
 import "./globals.css";
+
+const APP_NAME = "Local PDF Toolkit";
 
 const bodyFont = Bricolage_Grotesque({
   variable: "--font-body",
@@ -27,13 +27,12 @@ const monoFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: config.appBaseUrl ? new URL(config.appBaseUrl) : undefined,
   title: {
     default: APP_NAME,
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Direktori profil komunitas tanpa login untuk merapikan pertukaran link Instagram dan LinkedIn.",
+    "Alat PDF yang berjalan 100% di browser — buka password, kompres, dan ubah PDF tanpa mengunggah file ke mana pun.",
 };
 
 export default function RootLayout({
@@ -46,10 +45,7 @@ export default function RootLayout({
       lang="id"
       className={`${bodyFont.variable} ${displayFont.variable} ${monoFont.variable}`}
     >
-      <body>
-        {children}
-        <Analytics />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

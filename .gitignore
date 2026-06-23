@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# self-hosted wasm (copied from node_modules by scripts/copy-mupdf-wasm.mjs)
+/public/wasm/
+
 # production
 /build
 
