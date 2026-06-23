@@ -1,22 +1,30 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
+import { inspectPdf, unlockPdf } from "@/lib/pdf/pdf-worker-client";
 import {
   InvalidPdfError,
   WrongPasswordError,
-  inspectPdf,
-  unlockPdf,
   type PdfProtection,
 } from "@/lib/pdf/unlock";
+import { makeZip } from "@/lib/pdf/zip";
 
-type Phase = "idle" | "inspecting" | "ready" | "working" | "done";
+type Status = "inspecting" | "ready" | "working" | "done" | "error";
 
-type Result = { url: string; name: string; size: number };
+type Entry = {
+  id: string;
+  name: string;
+  bytes: Uint8Array;
+  protection: PdfProtection | null;
+  status: Status;
+  message?: string;
+  password: string; // per-file override
+  result?: { url: string; name: string; bytes: Uint8Array; size: number };
+};
 
 function outputName(name: string) {
-  const base = name.replace(/\.pdf$/i, "");
-  return `${base} - unlocked.pdf`;
+  return `${name.replace(/\.pdf$/i, "")} - unlocked.pdf`;
 }
 
 function formatSize(bytes: number) {
@@ -25,112 +33,186 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function PdfUnlock() {
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [fileName, setFileName] = useState("");
-  const [bytes, setBytes] = useState<Uint8Array | null>(null);
-  const [protection, setProtection] = useState<PdfProtection | null>(null);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
-  const [dragging, setDragging] = useState(false);
+function isPdf(file: File) {
+  return /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+}
 
+function statusLabel(entry: Entry): string {
+  switch (entry.status) {
+    case "inspecting":
+      return "Memeriksa…";
+    case "working":
+      return "Memproses…";
+    case "done":
+      return "Selesai ✓";
+    case "error":
+      return entry.message ?? "Gagal";
+    case "ready":
+      if (entry.protection === "password-required") return "Terkunci 🔒";
+      if (entry.protection === "restricted") return "Ada batasan";
+      return "Tanpa proteksi";
+  }
+}
+
+export function PdfUnlock() {
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [sharedPassword, setSharedPassword] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const reset = useCallback(() => {
-    if (result) URL.revokeObjectURL(result.url);
-    setPhase("idle");
-    setFileName("");
-    setBytes(null);
-    setProtection(null);
-    setPassword("");
-    setError("");
-    setResult(null);
-    if (inputRef.current) inputRef.current.value = "";
-  }, [result]);
+  const patch = useCallback((id: string, partial: Partial<Entry>) => {
+    setEntries((prev) =>
+      prev.map((entry) => (entry.id === id ? { ...entry, ...partial } : entry)),
+    );
+  }, []);
 
-  const handleFile = useCallback(
-    async (file: File) => {
-      if (result) URL.revokeObjectURL(result.url);
-      setResult(null);
-      setError("");
-      setPassword("");
-      setFileName(file.name);
-      setPhase("inspecting");
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      const pdfs = files.filter(isPdf);
+      if (pdfs.length === 0) return;
 
+      const created: Entry[] = pdfs.map((file) => ({
+        id: crypto.randomUUID(),
+        name: file.name,
+        bytes: new Uint8Array(),
+        protection: null,
+        status: "inspecting",
+        password: "",
+      }));
+      setEntries((prev) => [...prev, ...created]);
+
+      await Promise.all(
+        pdfs.map(async (file, index) => {
+          const { id } = created[index];
+          try {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            const protection = await inspectPdf(bytes);
+            patch(id, { bytes, protection, status: "ready" });
+          } catch (err) {
+            patch(id, {
+              status: "error",
+              message:
+                err instanceof InvalidPdfError
+                  ? err.message
+                  : "Gagal membaca file.",
+            });
+          }
+        }),
+      );
+    },
+    [patch],
+  );
+
+  const processOne = useCallback(
+    async (entry: Entry, password: string) => {
+      patch(entry.id, { status: "working", message: undefined });
       try {
-        const buffer = new Uint8Array(await file.arrayBuffer());
-        setBytes(buffer);
-        const state = await inspectPdf(buffer);
-        setProtection(state);
-        setPhase("ready");
+        const out = await unlockPdf(entry.bytes, password);
+        const blob = new Blob([out as BlobPart], { type: "application/pdf" });
+        patch(entry.id, {
+          status: "done",
+          result: {
+            url: URL.createObjectURL(blob),
+            name: outputName(entry.name),
+            bytes: out,
+            size: blob.size,
+          },
+        });
       } catch (err) {
-        setProtection(null);
-        setBytes(null);
-        setPhase("idle");
-        setError(
-          err instanceof InvalidPdfError
-            ? err.message
-            : "Gagal membaca file. Pastikan ini berkas PDF.",
-        );
+        let message = "Gagal membuka PDF.";
+        if (err instanceof WrongPasswordError) message = "Password salah.";
+        else if (err instanceof InvalidPdfError) message = err.message;
+        patch(entry.id, { status: "error", message });
       }
     },
-    [result],
+    [patch],
   );
+
+  const runAll = useCallback(async () => {
+    setBusy(true);
+    const targets = entries.filter(
+      (entry) => entry.status === "ready" || entry.status === "error",
+    );
+    for (const entry of targets) {
+      const password = entry.password || sharedPassword;
+      if (entry.protection === "password-required" && !password) {
+        patch(entry.id, { status: "error", message: "Masukkan password dulu." });
+        continue;
+      }
+      await processOne(entry, password);
+    }
+    setBusy(false);
+  }, [entries, sharedPassword, patch, processOne]);
+
+  const removeEntry = useCallback((id: string) => {
+    setEntries((prev) => {
+      const target = prev.find((entry) => entry.id === id);
+      if (target?.result) URL.revokeObjectURL(target.result.url);
+      return prev.filter((entry) => entry.id !== id);
+    });
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setEntries((prev) => {
+      prev.forEach((entry) => {
+        if (entry.result) URL.revokeObjectURL(entry.result.url);
+      });
+      return [];
+    });
+    setSharedPassword("");
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
 
   const onInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (file) void handleFile(file);
+      const files = event.target.files ? Array.from(event.target.files) : [];
+      if (files.length) void addFiles(files);
+      if (inputRef.current) inputRef.current.value = "";
     },
-    [handleFile],
+    [addFiles],
   );
 
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLLabelElement>) => {
       event.preventDefault();
       setDragging(false);
-      const file = event.dataTransfer.files?.[0];
-      if (file) void handleFile(file);
+      const files = event.dataTransfer.files
+        ? Array.from(event.dataTransfer.files)
+        : [];
+      if (files.length) void addFiles(files);
     },
-    [handleFile],
+    [addFiles],
   );
 
-  const handleUnlock = useCallback(async () => {
-    if (!bytes) return;
-    setError("");
-    setPhase("working");
+  const doneEntries = useMemo(
+    () => entries.filter((entry) => entry.status === "done" && entry.result),
+    [entries],
+  );
 
-    try {
-      const out = await unlockPdf(bytes, password);
-      const blob = new Blob([out as BlobPart], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const name = outputName(fileName || "document.pdf");
+  const downloadZip = useCallback(() => {
+    const zip = makeZip(
+      doneEntries.map((entry) => ({
+        name: entry.result!.name,
+        bytes: entry.result!.bytes,
+      })),
+    );
+    const blob = new Blob([zip as BlobPart], { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "unlocked-pdfs.zip";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }, [doneEntries]);
 
-      // Trigger the download immediately; the link stays available too.
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = name;
-      anchor.click();
-
-      setResult({ url, name, size: blob.size });
-      setPhase("done");
-    } catch (err) {
-      setPhase("ready");
-      if (err instanceof WrongPasswordError) {
-        setError("Password salah. Coba lagi.");
-      } else if (err instanceof InvalidPdfError) {
-        setError(err.message);
-      } else {
-        setError("Gagal membuka PDF. Coba file lain.");
-        console.error(err);
-      }
-    }
-  }, [bytes, password, fileName]);
-
-  const needsPassword = protection === "password-required";
-  const canSubmit =
-    phase === "ready" && (!needsPassword || password.length > 0);
+  const lockedCount = entries.filter(
+    (entry) => entry.protection === "password-required",
+  ).length;
+  const pending = entries.some(
+    (entry) => entry.status === "ready" || entry.status === "error",
+  );
+  const hasEntries = entries.length > 0;
 
   return (
     <div className="paper-panel tool-panel">
@@ -139,111 +221,147 @@ export function PdfUnlock() {
       </span>
       <h2 className="panel-title">Buka Password PDF</h2>
       <p className="panel-copy">
-        Hapus password dan batasan dari PDF milikmu. Semua proses berjalan di
-        dalam browser ini — file <strong>tidak pernah diunggah</strong> ke
-        server mana pun.
+        Hapus password dan batasan dari satu atau banyak PDF sekaligus. Semua
+        proses berjalan di dalam browser ini — file{" "}
+        <strong>tidak pernah diunggah</strong> ke server mana pun.
       </p>
 
-      {phase === "idle" || phase === "inspecting" ? (
-        <label
-          className={`dropzone${dragging ? " dropzone-active" : ""}`}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            className="field-hidden"
-            onChange={onInputChange}
-            disabled={phase === "inspecting"}
-          />
-          <span className="dropzone-icon" aria-hidden>
-            📄
-          </span>
-          <span className="dropzone-title">
-            {phase === "inspecting"
-              ? "Membaca file…"
-              : "Tarik PDF ke sini atau klik untuk pilih"}
-          </span>
-          <span className="dropzone-hint">
-            File diproses lokal di perangkatmu
-          </span>
-        </label>
-      ) : (
+      <label
+        className={`dropzone${dragging ? " dropzone-active" : ""}${
+          hasEntries ? " dropzone-compact" : ""
+        }`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          className="field-hidden"
+          onChange={onInputChange}
+        />
+        <span className="dropzone-icon" aria-hidden>
+          📄
+        </span>
+        <span className="dropzone-title">
+          {hasEntries
+            ? "Tambah PDF lain"
+            : "Tarik PDF ke sini atau klik untuk pilih"}
+        </span>
+        <span className="dropzone-hint">
+          Bisa pilih banyak file · diproses lokal di perangkatmu
+        </span>
+      </label>
+
+      {hasEntries && (
         <div className="form-stack">
-          <div className="file-row">
-            <div className="file-row-main">
-              <span className="file-row-name">{fileName}</span>
-              <span className="file-row-status">
-                {protection === "password-required" &&
-                  "Terkunci — butuh password untuk dibuka"}
-                {protection === "restricted" &&
-                  "Terbuka, tapi ada batasan (print/copy/edit) yang bisa dihapus"}
-                {protection === "open" &&
-                  "Tidak terkunci — bisa di-resave bersih tanpa enkripsi"}
-              </span>
-            </div>
-            <button type="button" className="chip-link" onClick={reset}>
-              Ganti file
-            </button>
-          </div>
+          <label className="field">
+            <span>
+              Password {lockedCount > 0 ? `(untuk ${lockedCount} file terkunci)` : "(opsional)"}
+            </span>
+            <input
+              type="password"
+              value={sharedPassword}
+              placeholder="Dipakai untuk semua file yang terkunci"
+              onChange={(event) => setSharedPassword(event.target.value)}
+            />
+          </label>
 
-          {needsPassword && phase !== "done" && (
-            <label className="field">
-              <span>Password PDF</span>
-              <input
-                type="password"
-                autoFocus
-                value={password}
-                placeholder="Masukkan password untuk membuka"
-                onChange={(event) => setPassword(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && canSubmit) void handleUnlock();
-                }}
-              />
-            </label>
-          )}
+          <ul className="file-list">
+            {entries.map((entry) => (
+              <li key={entry.id} className={`file-item file-item-${entry.status}`}>
+                <div className="file-item-info">
+                  <span className="file-row-name">{entry.name}</span>
+                  <span className={`file-badge file-badge-${entry.status}`}>
+                    {statusLabel(entry)}
+                  </span>
+                </div>
 
-          {phase !== "done" && (
+                <div className="file-item-actions">
+                  {entry.status === "done" && entry.result && (
+                    <a
+                      className="chip-link"
+                      href={entry.result.url}
+                      download={entry.result.name}
+                    >
+                      Unduh ({formatSize(entry.result.size)})
+                    </a>
+                  )}
+                  {entry.status === "error" &&
+                    entry.protection === "password-required" && (
+                      <input
+                        type="password"
+                        className="file-pw-input"
+                        placeholder="Password file ini"
+                        value={entry.password}
+                        onChange={(event) =>
+                          patch(entry.id, { password: event.target.value })
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && entry.password) {
+                            void processOne(entry, entry.password);
+                          }
+                        }}
+                      />
+                    )}
+                  {entry.status === "error" && (
+                    <button
+                      type="button"
+                      className="chip-link"
+                      onClick={() =>
+                        void processOne(
+                          entry,
+                          entry.password || sharedPassword,
+                        )
+                      }
+                    >
+                      Coba lagi
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="file-remove"
+                    aria-label={`Hapus ${entry.name}`}
+                    onClick={() => removeEntry(entry.id)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="batch-actions">
             <button
               type="button"
               className="button-main"
-              disabled={!canSubmit}
-              onClick={() => void handleUnlock()}
+              disabled={busy || !pending}
+              onClick={() => void runAll()}
             >
-              {phase === "working"
+              {busy
                 ? "Memproses…"
-                : needsPassword
-                  ? "Buka & hapus password"
-                  : "Hapus batasan & simpan bersih"}
+                : entries.length > 1
+                  ? `Buka semua (${entries.length})`
+                  : "Buka & hapus password"}
             </button>
-          )}
 
-          {phase === "done" && result && (
-            <div className="success-note tool-success">
-              <p className="tool-success-title">PDF berhasil dibuka ✓</p>
-              <p className="tool-success-copy">
-                Unduhan dimulai otomatis. Kalau terlewat, klik di bawah.
-              </p>
-              <div className="tool-success-actions">
-                <a className="button-main" href={result.url} download={result.name}>
-                  Unduh {result.name} ({formatSize(result.size)})
-                </a>
-                <button type="button" className="chip-link" onClick={reset}>
-                  Buka PDF lain
-                </button>
-              </div>
-            </div>
-          )}
+            {doneEntries.length > 1 && (
+              <button type="button" className="chip-link" onClick={downloadZip}>
+                Unduh semua (ZIP)
+              </button>
+            )}
+
+            <button type="button" className="chip-link" onClick={clearAll}>
+              Bersihkan
+            </button>
+          </div>
         </div>
       )}
-
-      {error && <p className="tool-error">{error}</p>}
     </div>
   );
 }

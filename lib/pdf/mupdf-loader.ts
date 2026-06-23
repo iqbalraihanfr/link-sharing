@@ -13,7 +13,8 @@ type MupdfModule = typeof import("mupdf");
 let mupdfPromise: Promise<MupdfModule> | null = null;
 
 export function loadMupdf(): Promise<MupdfModule> {
-  if (typeof window === "undefined") {
+  // `self` exists in both the main thread and Web Workers, but not in Node.
+  if (typeof self === "undefined") {
     throw new Error("mupdf can only be loaded in the browser.");
   }
 

@@ -18,14 +18,35 @@ bukan dari CDN luar.
 
 - **Buka Password PDF** — hapus password (user/owner) dan batasan
   (print/copy/edit) dari PDF milikmu, asal kamu tahu passwordnya.
+- **Banyak file sekaligus** — drop beberapa PDF, satu password dipakai untuk
+  semua file terkunci (atau password per-file kalau berbeda), lalu unduh hasil
+  satu per satu atau sekalian sebagai **ZIP**.
+- **Tetap responsif** — semua pemrosesan dijalankan di **Web Worker**, jadi UI
+  tidak nge-freeze meski file besar atau banyak.
+- **Bisa offline / install di HP** — aplikasi ini PWA: setelah dibuka sekali
+  saat online, bisa dipasang ke home screen dan dipakai **tanpa internet sama
+  sekali**.
 - Segera: Kompres, Gabung, Pisah/Ambil halaman, Gambar↔PDF.
 
 ## Cara pakai
 
 1. Buka aplikasi.
-2. Tarik PDF ke kotak unggah (file tetap di perangkatmu).
-3. Kalau diminta, masukkan password PDF.
-4. Klik **Buka & hapus password** — hasilnya langsung terunduh tanpa enkripsi.
+2. Tarik satu atau beberapa PDF ke kotak unggah (file tetap di perangkatmu).
+3. Kalau ada yang terkunci, isi password (satu kolom untuk semua, atau
+   per-file pada baris yang gagal).
+4. Klik **Buka semua** — tiap file langsung bisa diunduh, atau pakai
+   **Unduh semua (ZIP)**.
+
+## Pasang di HP (offline)
+
+1. Jalankan versi produksi (`pnpm build && pnpm start`) atau deploy ke hosting
+   apa pun, lalu buka URL-nya di browser HP **sekali saat ada internet**.
+2. Menu browser → **Add to Home screen / Install app**.
+3. Setelah itu aplikasi jalan penuh tanpa koneksi — engine PDF dan UI sudah
+   tersimpan di perangkat oleh service worker.
+
+> Catatan: service worker hanya aktif di mode produksi (bukan `pnpm dev`) dan
+> butuh konteks aman (HTTPS, atau `localhost` saat pengembangan).
 
 ## Stack
 
@@ -52,12 +73,19 @@ pnpm check   # lint + typecheck
 
 ## Arsitektur singkat
 
-- `components/pdf-unlock.tsx` — UI klien (drag & drop, password, unduh).
+- `components/pdf-unlock.tsx` — UI klien (multi-file drag & drop, password,
+  unduh per-file / ZIP).
+- `lib/pdf/pdf-worker-client.ts` — sisi main thread; mengelola satu Web Worker
+  dan mencocokkan respons per-request.
+- `lib/pdf/unlock.worker.ts` — Web Worker yang menjalankan mupdf.
 - `lib/pdf/unlock.ts` — logika decrypt: inspeksi proteksi, autentikasi
   password, lalu `saveToBuffer("decrypt,…")`.
 - `lib/pdf/mupdf-loader.ts` — memuat mupdf dari `/wasm` saat dibutuhkan.
-- `scripts/copy-mupdf-wasm.mjs` — menyalin `mupdf.js`, `mupdf-wasm.js`, dan
-  `mupdf-wasm.wasm` ke `public/wasm`.
+- `lib/pdf/zip.ts` — bundel hasil jadi ZIP (fflate, in-memory).
+- `app/manifest.ts` + `public/sw.js` + `components/service-worker.tsx` — PWA &
+  offline.
+- `scripts/copy-mupdf-wasm.mjs` — menyalin engine mupdf ke `public/wasm`.
+- `scripts/generate-icons.mjs` — membuat ikon PWA (`pnpm icons`).
 
 ## Catatan lisensi
 

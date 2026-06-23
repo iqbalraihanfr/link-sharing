@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored mupdf engine, copied in from node_modules — not ours to lint.
+    "public/wasm/**",
   ]),
 ]);
 
